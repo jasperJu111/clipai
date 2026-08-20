@@ -1,0 +1,43 @@
+{
+  "name": "clipai",
+  "version": "0.1.0",
+  "description": "ClipAI - AI-powered clipboard manager with screenshot & prompt support",
+  "main": "out/main/index.js",
+  "author": "ClipAI Open Source",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "test": "node test/run-tests.mjs",
+    "build": "electron-vite build",
+    "preview": "electron-vite preview",
+    "package": "electron-vite build && electron-builder"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.2.1",
+    "electron": "^29.1.0",
+    "electron-builder": "^24.13.3",
+    "electron-vite": "^2.1.0",
+    "vite": "^5.1.6"
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "electron-store": "^8.2.0"
+  },
+  "build": {
+    "appId": "com.clipai.app",
+    "productName": "ClipAI",
+    "icon": "resources/icon.png",
+    "mac": {
+      "category": "public.app-category.productivity",
+      "target": ["dmg", "zip"]
+    },
+    "win": {
+      "target": "nsis"
+    },
+    "linux": {
+      "target": "AppImage"
+    }
+  }
+}
