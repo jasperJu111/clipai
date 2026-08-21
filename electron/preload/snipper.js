@@ -9,5 +9,12 @@ contextBridge.exposeInMainWorld('clipai', {
   finishSnipper: (data) => ipcRenderer.invoke('finish-snipper', data),
   closeSnipper: () => ipcRenderer.invoke('close-snipper'),
   saveSnipperImage: (dataUrl) => ipcRenderer.invoke('save-snipper-image', dataUrl),
-  openImageViewer: (imageData) => ipcRenderer.invoke('open-image-viewer', imageData)
+  openImageViewer: (imageData) => ipcRenderer.invoke('open-image-viewer', imageData),
+
+  // 防御性空实现（防子组件意外调用）
+  getHistory: async () => [],
+  getSettings: async () => ({}),
+  getPrompts: async () => [],
+  onHistoryUpdated: () => () => {},
+  onScreenshotSuccess: () => () => {}
 })

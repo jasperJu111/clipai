@@ -39,6 +39,11 @@ contextBridge.exposeInMainWorld('clipai', {
     const handler = (_, s) => callback(s)
     ipcRenderer.on('settings-changed', handler)
     return () => ipcRenderer.removeListener('settings-changed', handler)
-  }
-})
+  },
 
+  // 防御性空实现（防子组件意外调用）
+  getHistory: async () => [],
+  getPrompts: async () => [],
+  onHistoryUpdated: () => () => {},
+  onScreenshotSuccess: () => () => {}
+})

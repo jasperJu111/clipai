@@ -1,13 +1,13 @@
 {
   "name": "clipai",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "description": "ClipAI - AI-powered clipboard manager with screenshot & prompt support",
   "main": "out/main/index.js",
   "author": "ClipAI Open Source",
   "license": "MIT",
   "type": "module",
   "scripts": {
-    "dev": "electron-vite dev",
+    "dev": "node prepare-dev-app.mjs && electron-vite dev",
     "test": "node test/run-tests.mjs",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
@@ -28,6 +28,7 @@
     "electron-store": "^8.2.0"
   },
   "build": {
+    "afterPack": "scripts/after-pack-mac.cjs",
     "appId": "com.clipai.app",
     "productName": "ClipAI",
     "mac": {

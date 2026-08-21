@@ -57,6 +57,12 @@ import {
   migrateLegacyApiKeys
 } from './secureStorage.js'
 
+// 开发版在 macOS 菜单、活动监视器、窗口与托盘中使用独立名称，
+// 避免与从 GitHub 安装的正式版 ClipAI 混淆。
+const IS_DEVELOPMENT = Boolean(process.defaultApp) || process.env.NODE_ENV === 'development'
+const APP_DISPLAY_NAME = IS_DEVELOPMENT ? 'ClipAI DEV' : 'ClipAI'
+if (IS_DEVELOPMENT) app.setName(APP_DISPLAY_NAME)
+
 // ─── 注册特权协议 scheme（必须在 app.whenReady 之前执行）────────────
 protocol.registerSchemesAsPrivileged([
   {
@@ -203,6 +209,7 @@ function createWindow() {
     backgroundColor: '#00000000',
     hasShadow: true,
     icon: APP_ICON_PATH,
+    title: APP_DISPLAY_NAME,
     alwaysOnTop: store?.get('alwaysOnTop', false),
     opacity: Math.min(Math.max((store?.get('windowOpacity', 100) || 100) / 100, 0.4), 1.0),
     webPreferences: {
@@ -210,7 +217,8 @@ function createWindow() {
       sandbox: true,
       contextIsolation: true,
       nodeIntegration: false,
-      webviewTag: true
+      webviewTag: true,
+      additionalArguments: [IS_DEVELOPMENT ? '--clipai-development' : '--clipai-production']
     }
   })
 
@@ -301,12 +309,12 @@ function createTray() {
   }
 
   tray = new Tray(trayIcon)
-  tray.setToolTip('ClipAI — 智能剪贴板')
+  tray.setToolTip(`${APP_DISPLAY_NAME} — 智能剪贴板`)
 
   tray.on('click', () => toggleWindow())
 
   const menu = Menu.buildFromTemplate([
-    { label: '显示/隐藏 ClipAI', click: () => toggleWindow() },
+    { label: `显示/隐藏 ${APP_DISPLAY_NAME}`, click: () => toggleWindow() },
     { type: 'separator' },
     { label: '截图', click: () => captureScreenshot() },
     { type: 'separator' },
@@ -563,9 +571,9 @@ async function openSnipperWindow() {
 
     const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged
     if (isDev && process.env['ELECTRON_RENDERER_URL']) {
-      snipperWindow.loadURL(`${process.env['ELECTRON_RENDERER_URL']}#snipper`)
+      snipperWindow.loadURL(`${process.env['ELECTRON_RENDERER_URL']}?route=snipper#snipper`)
     } else {
-      snipperWindow.loadFile(join(__dirname, '../renderer/index.html'), { hash: 'snipper' })
+      snipperWindow.loadFile(join(__dirname, '../renderer/index.html'), { hash: 'snipper', query: { route: 'snipper' } })
     }
 
     snipperWindow.on('closed', () => {
@@ -1431,9 +1439,9 @@ function openImageViewer(imageData) {
 
   const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged
   if (isDev && process.env['ELECTRON_RENDERER_URL']) {
-    imageViewerWindow.loadURL(`${process.env['ELECTRON_RENDERER_URL']}#viewer`)
+    imageViewerWindow.loadURL(`${process.env['ELECTRON_RENDERER_URL']}?route=viewer#viewer`)
   } else {
-    imageViewerWindow.loadFile(join(__dirname, '../renderer/index.html'), { hash: 'viewer' })
+    imageViewerWindow.loadFile(join(__dirname, '../renderer/index.html'), { hash: 'viewer', query: { route: 'viewer' } })
   }
 
   const sendPayload = () => {

@@ -321,6 +321,7 @@ export default function App() {
   const favCount = history.filter((i) => i.favorite).length
   const density = settings.density || 'standard'
   const theme = settings.theme || 'linear'
+  const isDevelopment = Boolean(window.clipai?.isDevelopment)
 
 
   const appStyle = theme === 'custom' && settings.customBgImage
@@ -369,7 +370,22 @@ export default function App() {
 
           <div className="title-bar-logo">
             <span style={{ fontSize: '18px' }}>📋</span>
-            <span className="title-bar-name">ClipAI</span>
+            <span className="title-bar-name">{isDevelopment ? 'ClipAI DEV' : 'ClipAI'}</span>
+            {isDevelopment && (
+              <span
+                style={{
+                  padding: '2px 6px',
+                  borderRadius: 999,
+                  background: '#ef4444',
+                  color: '#fff',
+                  fontSize: 9,
+                  fontWeight: 800,
+                  letterSpacing: 0.5
+                }}
+              >
+                开发版
+              </span>
+            )}
             <span style={{ fontSize: '10px', color: 'var(--text-muted)', marginLeft: 2 }}>v0.1</span>
           </div>
         </div>
@@ -655,4 +671,3 @@ export default function App() {
     </div>
   )
 }
-

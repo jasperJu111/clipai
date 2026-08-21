@@ -458,7 +458,7 @@ test('isSafeImageFilename 校验受控图片文件名与防御路径穿越', () 
   assert.strictEqual(isSafeImageFilename('img_123456_abc.png'), true)
   assert.strictEqual(isSafeImageFilename('img_test-1.jpg'), true)
   assert.strictEqual(isSafeImageFilename('img_test.webp'), true)
-  
+
   // 非法穿越路径与恶意字符
   assert.strictEqual(isSafeImageFilename('../evil.png'), false)
   assert.strictEqual(isSafeImageFilename('sub/dir/img.png'), false)
@@ -810,7 +810,7 @@ import fsSyncModule from 'fs'
 
 test('viewer preload 仅包含查看器所需最小权限，不泄露敏感特权 API', () => {
   const viewerPreloadCode = fsSyncModule.readFileSync(join(__dirname, '../electron/preload/viewer.js'), 'utf-8')
-  
+
   // 必须包含的必要接口
   assert(viewerPreloadCode.includes('copyImageToClipboard'), '必须暴露 copyImageToClipboard')
   assert(viewerPreloadCode.includes('minimizeImageViewer'), '必须暴露 minimizeImageViewer')
@@ -862,7 +862,7 @@ console.log('\n✂️ 19. finish-snipper 严格参数契约测试 (validateFinis
 test('validateFinishSnipperPayload: 严格拒绝原始字符串 (即使是合法 Data URL 字符串)', async () => {
   const { validateFinishSnipperPayload } = await import('../src/shared/imageUtils.js')
   const validDataUrl = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='
-  
+
   // 直接传字符串必须失败
   const strResult = validateFinishSnipperPayload(validDataUrl)
   assert.strictEqual(strResult.success, false, '直接传字符串必须返回 success: false')
@@ -1258,7 +1258,7 @@ test('formatShortcutForDisplay: Windows 下应清晰展示 Ctrl / Alt / Shift / 
 
 test('parseShortcutFromEvent: 支持平台感知的修饰键解析', async () => {
   const { parseShortcutFromEvent } = await import('../src/shared/shortcutUtils.js')
-  
+
   const macEvent = { metaKey: true, shiftKey: true, key: 'V', code: 'KeyV' }
   assert.strictEqual(parseShortcutFromEvent(macEvent, 'darwin'), 'Command+Shift+V')
 
@@ -1829,7 +1829,6 @@ if (failed > 0) {
 } else {
   process.exit(0)
 }
-
 
 
 

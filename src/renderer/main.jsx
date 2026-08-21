@@ -1,6 +1,8 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App'
+import ImageViewer from './components/ImageViewer'
+import ScreenSnipper from './components/ScreenSnipper'
 import './index.css'
 
 // 在纯浏览器 / IDE 内置预览模式下，自动注入 Mock 数据支持无缝在线预览与交互
@@ -69,10 +71,6 @@ if (!window.clipai) {
   }
 }
 
-
-import ImageViewer from './components/ImageViewer'
-import ScreenSnipper from './components/ScreenSnipper'
-
 class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props)
@@ -92,12 +90,14 @@ class ErrorBoundary extends React.Component {
             <div style={{ fontSize: 32, marginBottom: 12 }}>⚠️</div>
             <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>界面渲染异常</div>
             <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 16, wordBreak: 'break-all', fontFamily: 'monospace' }}>
-              {String(this.state.error?.message || this.state.error)}
+              {String(this.state.error?.message || this.state.error || '未知异常')}
             </div>
             <button
               onClick={() => {
                 if (window.clipai?.closeImageViewer) {
                   window.clipai.closeImageViewer()
+                } else if (window.clipai?.closeSnipper) {
+                  window.clipai.closeSnipper()
                 } else {
                   window.location.reload()
                 }
@@ -114,13 +114,24 @@ class ErrorBoundary extends React.Component {
   }
 }
 
-const isViewer = window.location.hash === '#viewer' || window.location.hash.includes('viewer')
-const isSnipper = window.location.hash === '#snipper' || window.location.hash.includes('snipper')
+function resolveRootComponent() {
+  const hash = window.location.hash || ''
+  const search = window.location.search || ''
+  const href = window.location.href || ''
+
+  if (hash.includes('viewer') || search.includes('viewer') || href.includes('#viewer') || href.includes('route=viewer')) {
+    return <ImageViewer />
+  }
+  if (hash.includes('snipper') || search.includes('snipper') || href.includes('#snipper') || href.includes('route=snipper')) {
+    return <ScreenSnipper />
+  }
+  return <App />
+}
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <ErrorBoundary>
-      {isViewer ? <ImageViewer /> : isSnipper ? <ScreenSnipper /> : <App />}
+      {resolveRootComponent()}
     </ErrorBoundary>
   </React.StrictMode>
 )

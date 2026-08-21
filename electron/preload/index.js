@@ -3,6 +3,8 @@ import { contextBridge, ipcRenderer, webFrame } from 'electron'
 contextBridge.exposeInMainWorld('clipai', {
   // 运行平台标识 ('darwin' | 'win32' | 'linux')
   platform: process.platform,
+  // 仅用于界面显示开发版标签；由主进程通过受控启动参数注入。
+  isDevelopment: process.argv.includes('--clipai-development'),
 
   // 历史记录
   getHistory: () => ipcRenderer.invoke('get-history'),
