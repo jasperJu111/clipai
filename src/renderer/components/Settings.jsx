@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { LANGUAGES } from '../locales'
 import { AI_PROVIDERS, AI_GROUPS } from '../constants/aiProviders'
-import { parseShortcutFromEvent, resolveStoredShortcut } from '../../shared/shortcutUtils.js'
+import { parseShortcutFromEvent, resolveStoredShortcut, formatShortcutForDisplay, getDefaultShortcuts } from '../../shared/shortcutUtils.js'
 
 function Toggle({ checked, onChange }) {
   return (
@@ -22,30 +22,24 @@ const AVAILABLE_KEYS = [
 
 function ShortcutSelector({ value = '', onChange, presets = [], t = (k) => k }) {
   const [recording, setRecording] = useState(false)
+  const platform = window.clipai?.platform || (typeof navigator !== 'undefined' && navigator.userAgent?.includes('Windows') ? 'win32' : 'darwin')
+  const isMac = platform === 'darwin'
 
-  // 友好展示快捷键
-  const formatDisplay = (val) => {
-    if (!val) return ''
-    return val
-      .replace(/Command/g, '⌘ Cmd')
-      .replace(/Alt/g, '⌥ Option')
-      .replace(/Ctrl/g, '⌃ Ctrl')
-      .replace(/Shift/g, '⇧ Shift')
-      .replace(/\+/g, ' + ')
-  }
+  // 跨平台友好展示快捷键
+  const formatDisplay = (val) => formatShortcutForDisplay(val, platform)
 
   // 解析当前快捷键
   const parts = value ? value.split('+') : []
   const hasAlt = parts.includes('Alt')
-  const hasCmd = parts.includes('Command')
+  const hasCmd = parts.includes('Command') || parts.includes('Super')
   const hasShift = parts.includes('Shift')
-  const hasCtrl = parts.includes('Ctrl')
-  const currentKey = parts.find((p) => !['Alt', 'Command', 'Shift', 'Ctrl'].includes(p)) || ''
+  const hasCtrl = parts.includes('Ctrl') || parts.includes('CommandOrControl')
+  const currentKey = parts.find((p) => !['Alt', 'Command', 'Super', 'Shift', 'Ctrl', 'CommandOrControl'].includes(p)) || ''
 
   const toggleModifier = (mod) => {
     const currentMods = []
     if (mod === 'Alt' ? !hasAlt : hasAlt) currentMods.push('Alt')
-    if (mod === 'Command' ? !hasCmd : hasCmd) currentMods.push('Command')
+    if (mod === (isMac ? 'Command' : 'Super') ? !hasCmd : hasCmd) currentMods.push(isMac ? 'Command' : 'Super')
     if (mod === 'Shift' ? !hasShift : hasShift) currentMods.push('Shift')
     if (mod === 'Ctrl' ? !hasCtrl : hasCtrl) currentMods.push('Ctrl')
 
@@ -57,7 +51,7 @@ function ShortcutSelector({ value = '', onChange, presets = [], t = (k) => k }) 
   const setKey = (newKey) => {
     const currentMods = []
     if (hasAlt) currentMods.push('Alt')
-    if (hasCmd) currentMods.push('Command')
+    if (hasCmd) currentMods.push(isMac ? 'Command' : 'Super')
     if (hasShift) currentMods.push('Shift')
     if (hasCtrl) currentMods.push('Ctrl')
     const combo = currentMods.length > 0 ? [...currentMods, newKey].join('+') : newKey
@@ -81,7 +75,7 @@ function ShortcutSelector({ value = '', onChange, presets = [], t = (k) => k }) 
       return
     }
 
-    const combo = parseShortcutFromEvent(e)
+    const combo = parseShortcutFromEvent(e, platform)
     if (combo) {
       onChange(combo)
       setRecording(false)
@@ -137,15 +131,15 @@ function ShortcutSelector({ value = '', onChange, presets = [], t = (k) => k }) 
           style={{ fontSize: '11px', padding: '3px 8px', height: 26 }}
           onClick={() => toggleModifier('Alt')}
         >
-          ⌥ Option
+          {isMac ? '⌥ Option' : 'Alt'}
         </button>
         <button
           type="button"
           className={`btn ${hasCmd ? 'btn-primary' : 'btn-secondary'}`}
           style={{ fontSize: '11px', padding: '3px 8px', height: 26 }}
-          onClick={() => toggleModifier('Command')}
+          onClick={() => toggleModifier(isMac ? 'Command' : 'Super')}
         >
-          ⌘ Cmd
+          {isMac ? '⌘ Cmd' : 'Win'}
         </button>
         <button
           type="button"
@@ -153,7 +147,7 @@ function ShortcutSelector({ value = '', onChange, presets = [], t = (k) => k }) 
           style={{ fontSize: '11px', padding: '3px 8px', height: 26 }}
           onClick={() => toggleModifier('Shift')}
         >
-          ⇧ Shift
+          {isMac ? '⇧ Shift' : 'Shift'}
         </button>
         <button
           type="button"
@@ -161,7 +155,7 @@ function ShortcutSelector({ value = '', onChange, presets = [], t = (k) => k }) 
           style={{ fontSize: '11px', padding: '3px 8px', height: 26 }}
           onClick={() => toggleModifier('Ctrl')}
         >
-          ⌃ Ctrl
+          {isMac ? '⌃ Ctrl' : 'Ctrl'}
         </button>
 
         <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>+</span>
@@ -1406,35 +1400,44 @@ export default function Settings({
         <div>
           <div className="panel-label" style={{ marginBottom: 6 }}>{t('settings.shortcutLabel')}</div>
           <ShortcutSelector
-            value={resolveStoredShortcut(settings.shortcut, 'Alt+Space')}
+            value={resolveStoredShortcut(settings.shortcut, (getDefaultShortcuts(window.clipai?.platform || (typeof navigator !== 'undefined' && navigator.userAgent?.includes('Windows') ? 'win32' : 'darwin'))).shortcut)}
             onChange={(val) => handleChange('shortcut', val)}
             t={t}
-            presets={[
-              { label: '🍏 ⌥ Option + Space', val: 'Alt+Space' },
-              { label: '🍏 ⌘ Cmd + ⇧ Shift + V', val: 'Command+Shift+V' },
-              { label: '🍏 ⌃ Ctrl + Space', val: 'Ctrl+Space' },
-              { label: '🪟 Alt + Space', val: 'Alt+Space' },
-              { label: '🪟 Ctrl + Shift + V', val: 'Ctrl+Shift+V' },
-              { label: '🪟 Ctrl + Alt + V', val: 'Ctrl+Alt+V' }
-            ]}
+            presets={
+              (window.clipai?.platform === 'darwin' || (!window.clipai?.platform && typeof navigator !== 'undefined' && !navigator.userAgent?.includes('Windows')))
+                ? [
+                    { label: '🍏 ⌥ Option + Space', val: 'Alt+Space' },
+                    { label: '🍏 ⌘ Cmd + ⇧ Shift + V', val: 'Command+Shift+V' },
+                    { label: '🍏 ⌃ Ctrl + Space', val: 'Ctrl+Space' }
+                  ]
+                : [
+                    { label: '🪟 Ctrl + Shift + Space (推荐)', val: 'Ctrl+Shift+Space' },
+                    { label: '🪟 Ctrl + Shift + V', val: 'Ctrl+Shift+V' },
+                    { label: '🪟 Ctrl + Alt + V', val: 'Ctrl+Alt+V' }
+                  ]
+            }
           />
         </div>
 
         <div>
           <div className="panel-label" style={{ marginBottom: 6 }}>📸 {t('settings.screenshotShortcutLabel') || '截图快捷键'}</div>
           <ShortcutSelector
-            value={resolveStoredShortcut(settings.screenshotShortcut, 'Alt+A')}
+            value={resolveStoredShortcut(settings.screenshotShortcut, (getDefaultShortcuts(window.clipai?.platform || (typeof navigator !== 'undefined' && navigator.userAgent?.includes('Windows') ? 'win32' : 'darwin'))).screenshotShortcut)}
             onChange={(val) => handleChange('screenshotShortcut', val)}
             t={t}
-            presets={[
-              { label: '🍏 ⌥ Option + A', val: 'Alt+A' },
-              { label: '🍏 ⌘ Cmd + ⇧ Shift + A', val: 'Command+Shift+A' },
-              { label: '🍏 ⌘ Cmd + ⇧ Shift + 4', val: 'Command+Shift+4' },
-              { label: '🪟 Alt + A', val: 'Alt+A' },
-              { label: '🪟 Ctrl + Alt + A', val: 'Ctrl+Alt+A' },
-              { label: '🪟 Ctrl + Shift + A', val: 'Ctrl+Shift+A' },
-              { label: '⚡ F1', val: 'F1' }
-            ]}
+            presets={
+              (window.clipai?.platform === 'darwin' || (!window.clipai?.platform && typeof navigator !== 'undefined' && !navigator.userAgent?.includes('Windows')))
+                ? [
+                    { label: '🍏 ⌥ Option + A', val: 'Alt+A' },
+                    { label: '🍏 ⌘ Cmd + ⇧ Shift + A', val: 'Command+Shift+A' },
+                    { label: '🍏 ⌘ Cmd + ⇧ Shift + 4', val: 'Command+Shift+4' }
+                  ]
+                : [
+                    { label: '🪟 Ctrl + Shift + A (推荐)', val: 'Ctrl+Shift+A' },
+                    { label: '🪟 Ctrl + Alt + A', val: 'Ctrl+Alt+A' },
+                    { label: '⚡ F1', val: 'F1' }
+                  ]
+            }
           />
           <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
             {t('settings.screenshotShortcutTip') || '💡 全局快捷键：在任何页面按下此键，即可划选截图并自动存入剪贴板与历史记录'}

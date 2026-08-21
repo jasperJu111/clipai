@@ -1,6 +1,9 @@
 import { contextBridge, ipcRenderer, webFrame } from 'electron'
 
 contextBridge.exposeInMainWorld('clipai', {
+  // 运行平台标识 ('darwin' | 'win32' | 'linux')
+  platform: process.platform,
+
   // 历史记录
   getHistory: () => ipcRenderer.invoke('get-history'),
   copyToClipboard: (item) => ipcRenderer.invoke('copy-to-clipboard', item),
@@ -27,7 +30,6 @@ contextBridge.exposeInMainWorld('clipai', {
   setCompactMode: (isCompact) => ipcRenderer.invoke('set-compact-mode', isCompact),
   setWindowOpacity: (opacity) => ipcRenderer.invoke('set-window-opacity', opacity),
 
-
   // 设置
   getSettings: () => ipcRenderer.invoke('get-settings'),
   setSettings: (settings) => ipcRenderer.invoke('set-settings', settings),
@@ -51,12 +53,11 @@ contextBridge.exposeInMainWorld('clipai', {
   saveImageDialog: (dataUrl) => ipcRenderer.invoke('save-image-dialog', dataUrl),
   closeImageViewer: () => ipcRenderer.invoke('close-image-viewer'),
 
-  // 微信级全屏交互截图
+  // 全屏交互截图
   getSnipperData: () => ipcRenderer.invoke('get-snipper-data'),
   closeSnipper: () => ipcRenderer.invoke('close-snipper'),
   finishSnipper: (data) => ipcRenderer.invoke('finish-snipper', data),
   saveSnipperImage: (dataUrl) => ipcRenderer.invoke('save-snipper-image', dataUrl),
-
 
   onLoadViewerImage: (callback) => {
     const handler = (_, img) => callback(img)
@@ -76,6 +77,3 @@ contextBridge.exposeInMainWorld('clipai', {
     return () => ipcRenderer.removeListener('screenshot-success', handler)
   }
 })
-
-
-

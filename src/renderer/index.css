@@ -325,11 +325,13 @@ body {
     radial-gradient(ellipse 70% 35% at 100% 100%, var(--ambient-glow-2), transparent);
   border: 1px solid var(--border-strong);
   border-radius: 18px;
-  backdrop-filter: blur(35px) saturate(190%);
-  -webkit-backdrop-filter: blur(35px) saturate(190%);
+  backdrop-filter: blur(28px) saturate(180%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.16);
   overflow: hidden;
   transform: translateZ(0);
+  will-change: transform;
+  contain: paint;
 }
 
 

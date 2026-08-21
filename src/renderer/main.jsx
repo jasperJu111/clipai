@@ -73,12 +73,55 @@ if (!window.clipai) {
 import ImageViewer from './components/ImageViewer'
 import ScreenSnipper from './components/ScreenSnipper'
 
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props)
+    this.state = { hasError: false, error: null }
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error }
+  }
+  componentDidCatch(error, errorInfo) {
+    console.error('React Root ErrorBoundary caught:', error, errorInfo)
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ width: '100vw', height: '100vh', background: '#0b0c12', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div style={{ textAlign: 'center', maxWidth: 460 }}>
+            <div style={{ fontSize: 32, marginBottom: 12 }}>⚠️</div>
+            <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>界面渲染异常</div>
+            <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 16, wordBreak: 'break-all', fontFamily: 'monospace' }}>
+              {String(this.state.error?.message || this.state.error)}
+            </div>
+            <button
+              onClick={() => {
+                if (window.clipai?.closeImageViewer) {
+                  window.clipai.closeImageViewer()
+                } else {
+                  window.location.reload()
+                }
+              }}
+              style={{ background: '#6366f1', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 18px', cursor: 'pointer', fontSize: 13 }}
+            >
+              关闭 / 刷新
+            </button>
+          </div>
+        </div>
+      )
+    }
+    return this.props.children
+  }
+}
+
 const isViewer = window.location.hash === '#viewer' || window.location.hash.includes('viewer')
 const isSnipper = window.location.hash === '#snipper' || window.location.hash.includes('snipper')
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    {isViewer ? <ImageViewer /> : isSnipper ? <ScreenSnipper /> : <App />}
+    <ErrorBoundary>
+      {isViewer ? <ImageViewer /> : isSnipper ? <ScreenSnipper /> : <App />}
+    </ErrorBoundary>
   </React.StrictMode>
 )
 

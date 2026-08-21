@@ -11,7 +11,9 @@
     "test": "node test/run-tests.mjs",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
-    "package": "electron-vite build && electron-builder"
+    "package": "electron-vite build && electron-builder",
+    "package:mac": "electron-vite build && electron-builder --mac --universal",
+    "package:win": "electron-vite build && electron-builder --win --x64"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.2.1",
@@ -28,13 +30,33 @@
   "build": {
     "appId": "com.clipai.app",
     "productName": "ClipAI",
-    "icon": "resources/icon.png",
     "mac": {
       "category": "public.app-category.productivity",
-      "target": ["dmg", "zip"]
+      "icon": "resources/icon.icns",
+      "target": [
+        "dmg",
+        "zip"
+      ]
     },
     "win": {
-      "target": "nsis"
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "resources/icon.ico",
+      "artifactName": "ClipAI-${version}-windows-${arch}-setup.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "ClipAI",
+      "deleteAppDataOnUninstall": false
     },
     "linux": {
       "target": "AppImage"

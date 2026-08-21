@@ -99,7 +99,8 @@ export function validateFinishSnipperPayload(payload) {
     success: true,
     dataUrl,
     parsed,
-    estimatedBytes
+    estimatedBytes,
+    openEditor: Boolean(payload.openEditor)
   }
 }
 
@@ -133,10 +134,14 @@ export function calculateThumbnailSize(width, height, maxDimension = MAX_THUMBNA
  * 规范化 clipai-image:// 协议 URL 路径
  */
 export function normalizeProtocolPath(urlStr) {
-  if (typeof urlStr !== 'string') return null
+  if (typeof urlStr !== 'string' || !urlStr.startsWith('clipai-image:')) return null
   let pathPart = urlStr.replace(/^clipai-image:\/\//i, '').replace(/^clipai-image:/i, '')
   pathPart = pathPart.split('?')[0].split('#')[0]
-  pathPart = pathPart.replace(/^\/+/, '')
+  pathPart = pathPart.replace(/^\/+/, '').replace(/\/+$/, '')
+  if (pathPart.includes('/')) {
+    const parts = pathPart.split('/')
+    pathPart = parts[parts.length - 1]
+  }
   return isSafeImageFilename(pathPart) ? pathPart : null
 }
 

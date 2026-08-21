@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
+import { calculatePhysicalCropRect, renderPhysicalAnnotations } from '../../shared/snipperCropUtils.js'
 
 export default function ScreenSnipper() {
   const [screenData, setScreenData] = useState(null)
@@ -47,8 +48,28 @@ export default function ScreenSnipper() {
   // 2. 键盘快捷键监听
   useEffect(() => {
     const handleKeyDown = (e) => {
+      // 如果正在输入文字，不拦截空格键与回车
+      if (activeText) {
+        if (e.key === 'Escape') {
+          setActiveText(null)
+        }
+        return
+      }
+
       if (e.key === 'Escape') {
         window.clipai?.closeSnipper?.()
+      } else if (e.key === ' ' || e.code === 'Space') {
+        // 微信同款：按空格键一键全屏 / 切换全屏选区
+        e.preventDefault()
+        if (!rect) {
+          setRect({ x: 0, y: 0, w: window.innerWidth, h: window.innerHeight })
+        } else if (rect.x === 0 && rect.y === 0 && rect.w === window.innerWidth && rect.h === window.innerHeight) {
+          setRect(null)
+          setAnnotations([])
+          setTextInputs([])
+        } else {
+          setRect({ x: 0, y: 0, w: window.innerWidth, h: window.innerHeight })
+        }
       } else if (e.key === 'Enter') {
         handleFinish()
       } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') {
@@ -61,7 +82,7 @@ export default function ScreenSnipper() {
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [rect, annotations, textInputs])
+  }, [rect, annotations, textInputs, activeText])
 
   // 3. 计算规范化矩形
   const normalizeRect = useCallback((r) => {
@@ -467,37 +488,50 @@ export default function ScreenSnipper() {
     }
   }
 
-  // 确认保存裁切结果
+  // 确认保存裁切结果（直接从原图以物理像素高保真裁剪与绘制标注，杜绝降采样模糊）
   const getCroppedDataUrl = () => {
-    if (!currentRect || !imageRef.current) return null
-    const norm = normalizeRect(currentRect)
-    if (norm.w <= 0 || norm.h <= 0) return null
+    const img = imageRef.current
+    if (!currentRect || !img) return null
 
-    const scale = screenData?.scaleFactor || window.devicePixelRatio || 1
-    const cropCanvas = document.createElement('canvas')
-    cropCanvas.width = Math.round(norm.w * scale)
-    cropCanvas.height = Math.round(norm.h * scale)
-    const ctx = cropCanvas.getContext('2d')
-    ctx.scale(scale, scale)
-
-    const mainCanvas = canvasRef.current
-    if (mainCanvas) {
-      ctx.drawImage(
-        mainCanvas,
-        norm.x,
-        norm.y,
-        norm.w,
-        norm.h,
-        0,
-        0,
-        norm.w,
-        norm.h
-      )
+    const logicalViewport = { width: window.innerWidth, height: window.innerHeight }
+    const naturalImageSize = {
+      width: img.naturalWidth || img.width,
+      height: img.naturalHeight || img.height
     }
+
+    const cropRect = calculatePhysicalCropRect(currentRect, logicalViewport, naturalImageSize)
+    if (!cropRect.valid || cropRect.width <= 0 || cropRect.height <= 0) return null
+
+    const cropCanvas = document.createElement('canvas')
+    cropCanvas.width = cropRect.width
+    cropCanvas.height = cropRect.height
+    const ctx = cropCanvas.getContext('2d')
+
+    // 1. 100% 物理无损从原始截图高清裁切
+    ctx.drawImage(
+      img,
+      cropRect.x,
+      cropRect.y,
+      cropRect.width,
+      cropRect.height,
+      0,
+      0,
+      cropRect.width,
+      cropRect.height
+    )
+
+    // 2. 将标注与文字按物理比例高精度绘制到裁剪画布上
+    renderPhysicalAnnotations({
+      ctx,
+      cropRect,
+      annotations,
+      textInputs
+    })
+
     return cropCanvas.toDataURL('image/png')
   }
 
-  // 完成截图
+  // 完成截图（直接复制到剪贴板并沉淀历史）
   const handleFinish = async () => {
     const dataUrl = getCroppedDataUrl()
     if (!dataUrl) {
@@ -506,7 +540,7 @@ export default function ScreenSnipper() {
     }
 
     try {
-      const res = await window.clipai?.finishSnipper?.({ dataUrl })
+      const res = await window.clipai?.finishSnipper?.({ dataUrl, openEditor: false })
       if (!res || !res.success) {
         const msg = res?.error || '保存截图失败'
         setErrorToast(msg)
@@ -515,6 +549,28 @@ export default function ScreenSnipper() {
       }
     } catch (err) {
       setErrorToast(err.message || '保存截图异常')
+      setTimeout(() => setErrorToast(null), 3000)
+    }
+  }
+
+  // 深度编辑（截图后直接呼出 ImageViewer 编辑器窗口）
+  const handleEdit = async () => {
+    const dataUrl = getCroppedDataUrl()
+    if (!dataUrl) {
+      window.clipai?.closeSnipper?.()
+      return
+    }
+
+    try {
+      const res = await window.clipai?.finishSnipper?.({ dataUrl, openEditor: true })
+      if (!res || !res.success) {
+        const msg = res?.error || '打开编辑器失败'
+        setErrorToast(msg)
+        setTimeout(() => setErrorToast(null), 3000)
+        console.error('finishSnipper with openEditor failed:', msg)
+      }
+    } catch (err) {
+      setErrorToast(err.message || '打开编辑器异常')
       setTimeout(() => setErrorToast(null), 3000)
     }
   }
@@ -570,7 +626,21 @@ export default function ScreenSnipper() {
       onDoubleClick={handleDoubleClick}
       onContextMenu={(e) => {
         e.preventDefault()
-        window.clipai?.closeSnipper?.()
+        e.stopPropagation()
+        if (activeText) {
+          setActiveText(null)
+        } else if (activeTool) {
+          // 1. 如果处于标注工具模式 -> 右键退出当前工具回到普通选区
+          setActiveTool(null)
+        } else if (rect) {
+          // 2. 如果已有选区 -> 右键清除选区，恢复初始准星状态
+          setRect(null)
+          setAnnotations([])
+          setTextInputs([])
+        } else {
+          // 3. 如果在初始暗色全屏无选区 -> 鼠标右键直接退出截图
+          window.clipai?.closeSnipper?.()
+        }
       }}
     >
       {errorToast && (
@@ -759,7 +829,7 @@ export default function ScreenSnipper() {
             type="button"
             className="snipper-tool-btn"
             onClick={handleUndo}
-            title="撤销上一步标注 (Cmd+Z)"
+            title={`撤销上一步标注 (${(window.clipai?.platform === 'darwin' || (!window.clipai?.platform && typeof navigator !== 'undefined' && !navigator.userAgent?.includes('Windows'))) ? 'Cmd' : 'Ctrl'}+Z)`}
           >
             ↩️
           </button>
@@ -769,7 +839,7 @@ export default function ScreenSnipper() {
             type="button"
             className="snipper-tool-btn"
             onClick={handleSave}
-            title="保存截图为图片 (Cmd+S)"
+            title={`保存截图为图片 (${(window.clipai?.platform === 'darwin' || (!window.clipai?.platform && typeof navigator !== 'undefined' && !navigator.userAgent?.includes('Windows'))) ? 'Cmd' : 'Ctrl'}+S)`}
           >
             💾
           </button>
@@ -779,10 +849,30 @@ export default function ScreenSnipper() {
             type="button"
             className="snipper-tool-btn"
             onClick={() => window.clipai?.closeSnipper?.()}
-            title="取消截图 (ESC)"
+            title="取消截图 (ESC / 鼠标右键)"
             style={{ color: '#ef4444' }}
           >
             ❌
+          </button>
+
+          {/* 🎨 深度编辑（直接打开大图编辑器） */}
+          <button
+            type="button"
+            className="snipper-tool-btn"
+            onClick={handleEdit}
+            title="直接打开编辑器进行二次涂鸦与 AI 识别分析"
+            style={{
+              backgroundColor: '#6366f1',
+              color: '#fff',
+              padding: '3px 10px',
+              borderRadius: 6,
+              fontWeight: 600,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4
+            }}
+          >
+            🎨 编辑
           </button>
 
           {/* 完成截图 */}

@@ -22,6 +22,7 @@ export async function executeFinishSnipperTransaction(payload, deps = {}) {
     sendScreenshotSuccess,
     closeSnipperWindow,
     showMainWindow,
+    openImageViewer,
     logWarning = console.warn
   } = deps
 
@@ -102,6 +103,14 @@ export async function executeFinishSnipperTransaction(payload, deps = {}) {
       showMainWindow()
     } catch (mainWinErr) {
       logWarning(`唤醒主窗口失败 (非致命): ${mainWinErr.message}`)
+    }
+  }
+
+  if (typeof openImageViewer === 'function') {
+    try {
+      openImageViewer(createdItem)
+    } catch (viewErr) {
+      logWarning(`打开图片编辑器失败 (非致命): ${viewErr.message}`)
     }
   }
 

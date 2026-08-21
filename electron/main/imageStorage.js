@@ -1,6 +1,5 @@
-import { app, protocol, nativeImage, net } from 'electron'
-import { join, basename, resolve } from 'path'
-import { pathToFileURL } from 'url'
+import { app, protocol, nativeImage } from 'electron'
+import { join, basename, resolve, relative, isAbsolute, sep, extname } from 'path'
 import fs from 'fs/promises'
 import fsSync from 'fs'
 import crypto from 'crypto'
@@ -85,6 +84,7 @@ export function registerImageProtocol() {
     try {
       const safeFilename = normalizeProtocolPath(request.url)
       if (!safeFilename) {
+        console.warn('⚠️ [clipai-image] 非法或无法识别的协议路径:', request.url)
         return new Response('Forbidden or Invalid Image Path', { status: 403 })
       }
 
@@ -92,13 +92,27 @@ export function registerImageProtocol() {
       const targetPath = resolve(dir, safeFilename)
 
       // 严格防御路径穿越：解析出的绝对路径必须位于 imagesDir 内部
-      if (!targetPath.startsWith(dir) || !fsSync.existsSync(targetPath)) {
+      const rel = relative(dir, targetPath)
+      const insideDir = rel === '' || (!rel.startsWith(`..${sep}`) && rel !== '..' && !isAbsolute(rel))
+      if (!insideDir || !fsSync.existsSync(targetPath)) {
+        console.warn('⚠️ [clipai-image] 未找到目标图片文件:', targetPath)
         return new Response('Not Found', { status: 404 })
       }
 
-      return net.fetch(pathToFileURL(targetPath).toString())
+      const fileBuffer = await fs.readFile(targetPath)
+      const ext = extname(safeFilename).toLowerCase()
+      const mime = EXT_TO_MIME[ext] || 'image/png'
+
+      return new Response(fileBuffer, {
+        status: 200,
+        headers: {
+          'Content-Type': mime,
+          'Content-Length': String(fileBuffer.length),
+          'Cache-Control': 'no-cache'
+        }
+      })
     } catch (err) {
-      console.error('clipai-image protocol error:', err)
+      console.error('⚠️ [clipai-image] 协议读取异常:', err)
       return new Response('Internal Server Error', { status: 500 })
     }
   })

@@ -19,7 +19,8 @@ import { join, extname } from 'path'
 import fs from 'fs/promises'
 import fsSync from 'fs'
 import { getMaxHistoryLimit, persistHistoryList, DEFAULT_MAX_HISTORY } from '../../src/shared/historyUtils.js'
-import { executeShortcutTransaction, resolveStoredShortcut } from '../../src/shared/shortcutUtils.js'
+import { executeShortcutTransaction, resolveStoredShortcut, getDefaultShortcuts } from '../../src/shared/shortcutUtils.js'
+import { selectDesktopCapturerSource } from '../../src/shared/screenUtils.js'
 import {
   fetchWithTimeout,
   parseResponseSafe,
@@ -99,17 +100,27 @@ if (!gotTheLock) {
   })
 }
 
-// 稳定获取应用图标路径（兼容开发环境、打包环境与 Resources 目录）
+// 稳定获取应用图标路径（兼容开发环境、打包环境与 Resources 目录，Windows 优先 icon.ico）
 function getAppIconPath() {
-  const devPath = join(__dirname, '../../resources/icon.png')
-  const packagedResourcePath = join(process.resourcesPath || '', 'icon.png')
-  const appPath = join(app.getAppPath ? app.getAppPath() : process.cwd(), 'resources', 'icon.png')
-  const cwdPath = join(process.cwd(), 'resources', 'icon.png')
-  if (fsSync.existsSync(devPath)) return devPath
-  if (fsSync.existsSync(packagedResourcePath)) return packagedResourcePath
-  if (fsSync.existsSync(appPath)) return appPath
-  if (fsSync.existsSync(cwdPath)) return cwdPath
-  return devPath
+  const isWin = process.platform === 'win32'
+  const primaryIcon = isWin ? 'icon.ico' : 'icon.png'
+  const fallbackIcon = 'icon.png'
+
+  const candidates = [
+    join(__dirname, `../../resources/${primaryIcon}`),
+    join(process.resourcesPath || '', primaryIcon),
+    join(app.getAppPath ? app.getAppPath() : process.cwd(), 'resources', primaryIcon),
+    join(process.cwd(), 'resources', primaryIcon),
+    join(__dirname, `../../resources/${fallbackIcon}`),
+    join(process.resourcesPath || '', fallbackIcon),
+    join(app.getAppPath ? app.getAppPath() : process.cwd(), 'resources', fallbackIcon),
+    join(process.cwd(), 'resources', fallbackIcon)
+  ]
+
+  for (const p of candidates) {
+    if (fsSync.existsSync(p)) return p
+  }
+  return join(__dirname, '../../resources/icon.png')
 }
 const APP_ICON_PATH = getAppIconPath()
 
@@ -191,6 +202,7 @@ function createWindow() {
     transparent: true,
     backgroundColor: '#00000000',
     hasShadow: true,
+    icon: APP_ICON_PATH,
     alwaysOnTop: store?.get('alwaysOnTop', false),
     opacity: Math.min(Math.max((store?.get('windowOpacity', 100) || 100) / 100, 0.4), 1.0),
     webPreferences: {
@@ -227,12 +239,16 @@ function createWindow() {
     mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
   }
 
-  // 窗口状态持久化
+  // 窗口状态持久化（防抖 300ms，避免拖拽边框缩放与移动时高频触发同步写盘阻塞主进程与 GPU 渲染）
+  let saveBoundsTimer = null
   const saveBounds = () => {
-    if (!mainWindow.isDestroyed() && !mainWindow.isMinimized()) {
-      const bounds = mainWindow.getBounds()
-      store?.set('windowBounds', bounds)
-    }
+    if (saveBoundsTimer) clearTimeout(saveBoundsTimer)
+    saveBoundsTimer = setTimeout(() => {
+      if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.isMinimized()) {
+        const bounds = mainWindow.getBounds()
+        store?.set('windowBounds', bounds)
+      }
+    }, 300)
   }
   mainWindow.on('resize', saveBounds)
   mainWindow.on('move', saveBounds)
@@ -469,9 +485,10 @@ async function openSnipperWindow() {
     return
   }
 
-  const primaryDisplay = screen.getPrimaryDisplay()
-  const { width, height } = primaryDisplay.bounds
-  const scaleFactor = primaryDisplay.scaleFactor || 1
+  const cursorPoint = screen.getCursorScreenPoint()
+  const targetDisplay = screen.getDisplayNearestPoint(cursorPoint) || screen.getPrimaryDisplay()
+  const { x, y, width, height } = targetDisplay.bounds
+  const scaleFactor = targetDisplay.scaleFactor || 1
 
   try {
     let screenDataUrl = null
@@ -497,8 +514,12 @@ async function openSnipperWindow() {
         types: ['screen'],
         thumbnailSize: { width: Math.round(width * scaleFactor), height: Math.round(height * scaleFactor) }
       })
-      if (sources && sources.length > 0) {
-        screenDataUrl = sources[0].thumbnail.toDataURL()
+      const selection = selectDesktopCapturerSource(sources, targetDisplay)
+      if (selection.source) {
+        if (selection.reason) {
+          console.warn(`[Snipper] 屏幕选择提示: ${selection.reason}`)
+        }
+        screenDataUrl = selection.source.thumbnail.toDataURL()
       }
     }
 
@@ -513,16 +534,17 @@ async function openSnipperWindow() {
     }
 
     snipperWindow = new BrowserWindow({
-      x: primaryDisplay.bounds.x,
-      y: primaryDisplay.bounds.y,
+      x,
+      y,
       width,
       height,
       frame: false,
       transparent: true,
-      fullscreen: process.platform !== 'darwin',
+      fullscreen: false,
       alwaysOnTop: true,
       skipTaskbar: true,
       enableLargerThanScreen: true,
+      icon: APP_ICON_PATH,
       webPreferences: {
         preload: getPreloadPath('snipper'),
         sandbox: true,
@@ -530,9 +552,13 @@ async function openSnipperWindow() {
       }
     })
 
+    snipperWindow.setBounds({ x, y, width, height })
+
     if (process.platform === 'darwin') {
       snipperWindow.setAlwaysOnTop(true, 'screen-saver')
       snipperWindow.setVisibleOnAllWorkspaces(true)
+    } else {
+      snipperWindow.setAlwaysOnTop(true, 'status')
     }
 
     const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged
@@ -553,7 +579,49 @@ async function openSnipperWindow() {
 }
 
 async function captureScreenshot() {
-  await openSnipperWindow()
+  if (process.platform === 'darwin') {
+    const tmpFile = join(app.getPath('temp'), `clipai_shot_${Date.now()}.png`)
+    try {
+      const { execFile } = await import('child_process')
+      const { promisify } = await import('util')
+      const execFileAsync = promisify(execFile)
+
+      // -i 交互截图, -x 静音截取, tmpFile (无需隐藏主窗口，保持屏幕常驻)
+      await execFileAsync('/usr/sbin/screencapture', ['-i', '-x', tmpFile])
+
+      const img = nativeImage.createFromPath(tmpFile)
+      if (!img.isEmpty()) {
+        const item = await saveImageToStorage(img, {
+          id: Date.now(),
+          label: '截图',
+          isScreenshot: true,
+          favorite: false
+        })
+        await addToHistory(item)
+        clipboard.writeImage(img)
+        lastClipboardImageHash = img.toBitmap().length.toString()
+
+        // 截图成功后：发送成功通知并直接打开大图编辑/查看器窗口
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          sendToRenderer('screenshot-success', item)
+        }
+        // 直接打开大图编辑器进行二次涂鸦与 AI 识别
+        openImageViewer(item)
+
+        try { await fs.unlink(tmpFile) } catch {}
+        return item
+      }
+    } catch (e) {
+      console.log('用户按下 ESC 取消截图或退出')
+    } finally {
+      try { await fs.unlink(tmpFile) } catch {}
+    }
+  } else {
+    // Windows / Linux: 打开全屏截图选区窗口
+    await openSnipperWindow()
+  }
+
+  return null
 }
 
 async function captureScreenshotDirect() {
@@ -577,14 +645,20 @@ async function captureScreenshotDirect() {
       }
       try { await fs.unlink(tmpFile) } catch (_) {}
     } else {
-      const primaryDisplay = screen.getPrimaryDisplay()
-      const { width, height } = primaryDisplay.size
+      const cursorPoint = screen.getCursorScreenPoint()
+      const targetDisplay = screen.getDisplayNearestPoint(cursorPoint) || screen.getPrimaryDisplay()
+      const { width, height } = targetDisplay.bounds
+      const scaleFactor = targetDisplay.scaleFactor || 1
       const sources = await desktopCapturer.getSources({
         types: ['screen'],
-        thumbnailSize: { width, height }
+        thumbnailSize: { width: Math.round(width * scaleFactor), height: Math.round(height * scaleFactor) }
       })
-      if (sources && sources.length > 0) {
-        const img = sources[0].thumbnail
+      const selection = selectDesktopCapturerSource(sources, targetDisplay)
+      if (selection.source) {
+        if (selection.reason) {
+          console.warn(`[ScreenshotDirect] 屏幕选择提示: ${selection.reason}`)
+        }
+        const img = selection.source.thumbnail
         const item = await saveImageToStorage(img, {
           id: Date.now(),
           label: '截图',
@@ -601,39 +675,34 @@ async function captureScreenshotDirect() {
 }
 
 // ─── 全局快捷键注册事务引擎 ────────────────────────────────────
-let currentActiveShortcuts = {
-  shortcut: 'Alt+Space',
-  screenshotShortcut: 'Alt+A'
-}
+let currentActiveShortcuts = getDefaultShortcuts(process.platform)
 
 function registerGlobalShortcuts(requestedShortcuts = {}) {
-  const result = executeShortcutTransaction(
-    requestedShortcuts,
-    currentActiveShortcuts,
-    {
-      register: (key, actionType) => {
-        try {
-          if (actionType === 'shortcut') {
-            return globalShortcut.register(key, () => toggleWindow())
-          } else if (actionType === 'screenshotShortcut') {
-            return globalShortcut.register(key, () => captureScreenshot())
-          }
-          return false
-        } catch (_) {
-          return false
+  const result = executeShortcutTransaction({
+    targetShortcuts: requestedShortcuts,
+    previousShortcuts: currentActiveShortcuts,
+    registerFn: (type, key) => {
+      try {
+        if (type === 'shortcut') {
+          return globalShortcut.register(key, () => toggleWindow())
+        } else if (type === 'screenshotShortcut') {
+          return globalShortcut.register(key, () => captureScreenshot())
         }
-      },
-      unregister: (key) => {
-        try {
-          globalShortcut.unregister(key)
-        } catch (_) {}
+        return false
+      } catch (err) {
+        console.warn(`⚠️ 注册全局快捷键异常 [${type}:${key}]:`, err.message)
+        return false
       }
+    },
+    unregisterAllFn: () => {
+      try {
+        globalShortcut.unregisterAll()
+      } catch (_) {}
     }
-  )
+  })
 
-  if (result.success) {
-    currentActiveShortcuts = { ...result.activeShortcuts }
-  }
+  // 确保存储与运行状态严格等于真实生效的快捷键
+  currentActiveShortcuts = { ...result.activeShortcuts }
   return result
 }
 
@@ -1090,9 +1159,10 @@ ipcMain.handle('set-settings', (event, s) => {
   const hasShortcutChange = 'shortcut' in s || 'screenshotShortcut' in s
   
   if (hasShortcutChange) {
+    const defaultShortcuts = getDefaultShortcuts(process.platform)
     const target = {
-      shortcut: 'shortcut' in s ? resolveStoredShortcut(s.shortcut, 'Alt+Space') : resolveStoredShortcut(store?.get('shortcut'), 'Alt+Space'),
-      screenshotShortcut: 'screenshotShortcut' in s ? resolveStoredShortcut(s.screenshotShortcut, 'Alt+A') : resolveStoredShortcut(store?.get('screenshotShortcut'), 'Alt+A')
+      shortcut: 'shortcut' in s ? resolveStoredShortcut(s.shortcut, defaultShortcuts.shortcut) : resolveStoredShortcut(store?.get('shortcut'), defaultShortcuts.shortcut),
+      screenshotShortcut: 'screenshotShortcut' in s ? resolveStoredShortcut(s.screenshotShortcut, defaultShortcuts.screenshotShortcut) : resolveStoredShortcut(store?.get('screenshotShortcut'), defaultShortcuts.screenshotShortcut)
     }
     shortcutResult = registerGlobalShortcuts(target)
     if (shortcutResult.success) {
@@ -1151,6 +1221,14 @@ ipcMain.handle('set-settings', (event, s) => {
       const val = Math.min(Math.max(num / 100, 0.4), 1.0)
       mainWindow.setOpacity(val)
     }
+  }
+
+  // 实时将新配置（如语言）广播给查看器与截图窗口
+  if (imageViewerWindow && !imageViewerWindow.isDestroyed()) {
+    imageViewerWindow.webContents.send('settings-changed', s)
+  }
+  if (snipperWindow && !snipperWindow.isDestroyed()) {
+    snipperWindow.webContents.send('settings-changed', s)
   }
 
   return {
@@ -1343,6 +1421,7 @@ function openImageViewer(imageData) {
     backgroundColor: '#12131a',
     frame: false,
     show: false,
+    icon: APP_ICON_PATH,
     webPreferences: {
       preload: getPreloadPath('viewer'),
       sandbox: true,
@@ -1357,10 +1436,30 @@ function openImageViewer(imageData) {
     imageViewerWindow.loadFile(join(__dirname, '../renderer/index.html'), { hash: 'viewer' })
   }
 
+  const sendPayload = () => {
+    if (imageViewerWindow && !imageViewerWindow.isDestroyed() && currentViewerImage) {
+      imageViewerWindow.webContents.send('load-viewer-image', currentViewerImage)
+    }
+  }
+
   imageViewerWindow.once('ready-to-show', () => {
     imageViewerWindow.show()
     imageViewerWindow.focus()
-    imageViewerWindow.webContents.send('load-viewer-image', currentViewerImage)
+    sendPayload()
+  })
+
+  imageViewerWindow.webContents.on('did-finish-load', () => {
+    sendPayload()
+  })
+
+  imageViewerWindow.webContents.on('console-message', (_, level, message) => {
+    console.log(`[Viewer-Renderer] ${message}`)
+  })
+  imageViewerWindow.webContents.on('render-process-gone', (e, details) => {
+    console.error('⚠️ [Viewer] render process crashed:', details)
+  })
+  imageViewerWindow.webContents.on('did-fail-load', (e, errorCode, errorDescription, validatedURL) => {
+    console.error('⚠️ [Viewer] did-fail-load:', errorCode, errorDescription, validatedURL)
   })
 
   imageViewerWindow.on('closed', () => {
@@ -1371,7 +1470,7 @@ function openImageViewer(imageData) {
 }
 
 ipcMain.handle('open-image-viewer', (event, img) => {
-  if (!verifyIpcSender(event, ['main'])) return { success: false, error: 'Unauthorized' }
+  if (!verifyIpcSender(event, ['main', 'snipper'])) return { success: false, error: 'Unauthorized' }
   return openImageViewer(img)
 })
 
@@ -1504,6 +1603,9 @@ ipcMain.handle('finish-snipper', async (event, payload) => {
         mainWindow.focus()
       }
     },
+    openImageViewer: (item) => {
+      openImageViewer(item)
+    },
     logWarning: (msg) => {
       console.warn(sanitizeTextForLogs(msg))
     }
@@ -1612,9 +1714,10 @@ app.whenReady().then(async () => {
   createTray()
   startClipboardMonitor()
 
-  // 10. 注册全局快捷键
-  const initialShortcut = resolveStoredShortcut(store.get('shortcut'), 'Alt+Space')
-  const initialScreenshotShortcut = resolveStoredShortcut(store.get('screenshotShortcut'), 'Alt+A')
+  // 10. 注册全局快捷键（依据系统平台自适应默认值）
+  const defaultShortcuts = getDefaultShortcuts(process.platform)
+  const initialShortcut = resolveStoredShortcut(store.get('shortcut'), defaultShortcuts.shortcut)
+  const initialScreenshotShortcut = resolveStoredShortcut(store.get('screenshotShortcut'), defaultShortcuts.screenshotShortcut)
   registerGlobalShortcuts({
     shortcut: initialShortcut,
     screenshotShortcut: initialScreenshotShortcut

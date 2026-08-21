@@ -94,8 +94,8 @@
 
 | 快捷键 | 作用说明 |
 | :--- | :--- |
-| <kbd>Alt + A</kbd> (或 <kbd>⌥ + A</kbd>) | **全局快速唤醒 / 隐藏 ClipAI 窗口** |
-| <kbd>Alt + S</kbd> (或 <kbd>⌥ + S</kbd>) | **开启全局高清区域截图与标注画板** |
+| <kbd>Alt + Space</kbd> (Mac) / <kbd>Ctrl + Shift + Space</kbd> (Win) | **全局快速唤醒 / 隐藏 ClipAI 窗口** |
+| <kbd>Alt + A</kbd> (或 <kbd>⌥ + A</kbd>) | **全局截图与大图编辑画板（自动直达编辑器）** |
 | <kbd>⌘ + F</kbd> / <kbd>Ctrl + F</kbd> | 快速聚焦搜索框 |
 | <kbd>⌘ + Enter</kbd> / <kbd>Ctrl + Enter</kbd> | 在 AI 对话或提示词中快速发送生成 |
 | <kbd>⌘ + Q</kbd> / <kbd>Alt + F4</kbd> | 彻底退出应用并关闭后台托盘进程 |

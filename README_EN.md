@@ -74,8 +74,8 @@ Combining 60 FPS silky-smooth frosted glass aesthetics with deep **local & cloud
 
 | Shortcut | Description |
 | :--- | :--- |
-| <kbd>Alt + A</kbd> (or <kbd>⌥ + A</kbd>) | **Global toggle (Show / Hide ClipAI)** |
-| <kbd>Alt + S</kbd> (or <kbd>⌥ + S</kbd>) | **Summon Area Screenshot & Annotation Tool** |
+| <kbd>Alt + Space</kbd> (Mac) / <kbd>Ctrl + Shift + Space</kbd> (Win) | **Global toggle (Show / Hide ClipAI)** |
+| <kbd>Alt + A</kbd> (or <kbd>⌥ + A</kbd>) | **Global Screenshot & Full Editor Canvas** |
 | <kbd>⌘ + F</kbd> / <kbd>Ctrl + F</kbd> | Focus Search Bar |
 | <kbd>⌘ + Enter</kbd> / <kbd>Ctrl + Enter</kbd> | Send / Generate in AI Chat |
 | <kbd>⌘ + Q</kbd> / <kbd>Alt + F4</kbd> | Quit application and terminate background tray |

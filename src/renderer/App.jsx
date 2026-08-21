@@ -391,7 +391,7 @@ export default function App() {
           <button
             className="title-bar-btn"
             onClick={handleScreenshot}
-            title={`${t('actions.screenshot')} (Alt+S)`}
+            title={`${t('actions.screenshot')} (${settings.screenshotShortcut || 'Alt+A'})`}
           >
             📸
           </button>

@@ -1232,6 +1232,595 @@ test('executeFinishSnipperTransaction: 阶段 D (关闭窗口或显示主窗口�
   assert.strictEqual(warnings.length, 2)
 })
 
+// ─── Windows 跨平台兼容性测试 ───────────────────────────────
+test('formatShortcutForDisplay: macOS 下应正确展示 ⌘ Cmd / ⌥ Option 等符号', async () => {
+  const { formatShortcutForDisplay } = await import('../src/shared/shortcutUtils.js')
+  assert.strictEqual(formatShortcutForDisplay('Command+Shift+V', 'darwin'), '⌘ Cmd + ⇧ Shift + V')
+  assert.strictEqual(formatShortcutForDisplay('Alt+Space', 'darwin'), '⌥ Option + Space')
+  assert.strictEqual(formatShortcutForDisplay('Ctrl+Alt+A', 'darwin'), '⌃ Ctrl + ⌥ Option + A')
+})
+
+test('formatShortcutForDisplay: Windows 下应清晰展示 Ctrl / Alt / Shift / Win，绝不能出现 ⌘ 或 ⌥', async () => {
+  const { formatShortcutForDisplay } = await import('../src/shared/shortcutUtils.js')
+  const winDisplay1 = formatShortcutForDisplay('Command+Shift+V', 'win32')
+  const winDisplay2 = formatShortcutForDisplay('Alt+Space', 'win32')
+  const winDisplay3 = formatShortcutForDisplay('Ctrl+Shift+A', 'win32')
+
+  assert.strictEqual(winDisplay1, 'Win + Shift + V')
+  assert.strictEqual(winDisplay2, 'Alt + Space')
+  assert.strictEqual(winDisplay3, 'Ctrl + Shift + A')
+
+  // 严禁包含苹果专有符号
+  assert.ok(!winDisplay1.includes('⌘') && !winDisplay1.includes('⌥'), 'Windows 快捷键不得含有 Mac 字符')
+  assert.ok(!winDisplay2.includes('⌘') && !winDisplay2.includes('⌥'), 'Windows 快捷键不得含有 Mac 字符')
+  assert.ok(!winDisplay3.includes('⌘') && !winDisplay3.includes('⌥'), 'Windows 快捷键不得含有 Mac 字符')
+})
+
+test('parseShortcutFromEvent: 支持平台感知的修饰键解析', async () => {
+  const { parseShortcutFromEvent } = await import('../src/shared/shortcutUtils.js')
+  
+  const macEvent = { metaKey: true, shiftKey: true, key: 'V', code: 'KeyV' }
+  assert.strictEqual(parseShortcutFromEvent(macEvent, 'darwin'), 'Command+Shift+V')
+
+  const winEvent = { ctrlKey: true, shiftKey: true, key: 'V', code: 'KeyV' }
+  assert.strictEqual(parseShortcutFromEvent(winEvent, 'win32'), 'Ctrl+Shift+V')
+})
+
+test('Windows resources/icon.ico 图标生成与尺寸校验', async () => {
+  const fs = await import('fs')
+  const path = await import('path')
+  const icoPath = path.resolve('resources/icon.ico')
+  assert.ok(fs.existsSync(icoPath), 'resources/icon.ico 必须存在')
+  
+  const buf = fs.readFileSync(icoPath)
+  assert.ok(buf.length > 1000, 'icon.ico 文件大小必须合理')
+  assert.strictEqual(buf.readUInt16LE(0), 0, 'ICO header reserved must be 0')
+  assert.strictEqual(buf.readUInt16LE(2), 1, 'ICO header type must be 1')
+  const count = buf.readUInt16LE(4)
+  assert.ok(count >= 5, `ICO 应包含多个尺寸，当前包含: ${count} 种尺寸`)
+})
+
+test('package.json: 包含 Windows NSIS 目标与 package:win 脚本', async () => {
+  const fs = await import('fs')
+  const path = await import('path')
+  const pkg = JSON.parse(fs.readFileSync(path.resolve('package.json'), 'utf-8'))
+
+  assert.ok(pkg.scripts['package:win'], '必须包含 package:win 构建命令')
+  assert.ok(pkg.scripts['package:mac'], '必须包含 package:mac 构建命令')
+  assert.ok(pkg.build?.win?.target, 'build.win.target 必须配置')
+  assert.strictEqual(pkg.build.win.icon, 'resources/icon.ico', 'Windows 图标必须指定 resources/icon.ico')
+  assert.ok(pkg.build.nsis, '必须包含 nsis 安装包配置')
+})
+
+// ─── 1. 快捷键注册事务与适配器调用集成测试 (Issue 1) ───────────
+test('executeShortcutTransaction: 生产对象参数契约与注册调用顺序 (type, key)', async () => {
+  const { executeShortcutTransaction } = await import('../src/shared/shortcutUtils.js')
+  const registerCalls = []
+  let unregisterCalled = false
+
+  const res = executeShortcutTransaction({
+    targetShortcuts: {
+      shortcut: 'Ctrl+Shift+Space',
+      screenshotShortcut: 'Ctrl+Shift+A'
+    },
+    previousShortcuts: {
+      shortcut: 'Alt+Space',
+      screenshotShortcut: 'Alt+A'
+    },
+    registerFn: (type, key) => {
+      registerCalls.push({ type, key })
+      return true
+    },
+    unregisterAllFn: () => {
+      unregisterCalled = true
+    }
+  })
+
+  assert.strictEqual(res.success, true)
+  assert.strictEqual(unregisterCalled, true, '必须先卸载旧快捷键')
+  assert.strictEqual(registerCalls.length, 2, '两个快捷键均应被注册')
+  assert.deepStrictEqual(registerCalls[0], { type: 'shortcut', key: 'Ctrl+Shift+Space' })
+  assert.deepStrictEqual(registerCalls[1], { type: 'screenshotShortcut', key: 'Ctrl+Shift+A' })
+  assert.deepStrictEqual(res.activeShortcuts, {
+    shortcut: 'Ctrl+Shift+Space',
+    screenshotShortcut: 'Ctrl+Shift+A'
+  })
+})
+
+test('executeShortcutTransaction: 一个快捷键为空时只注册另一个', async () => {
+  const { executeShortcutTransaction } = await import('../src/shared/shortcutUtils.js')
+  const registerCalls = []
+
+  const res = executeShortcutTransaction({
+    targetShortcuts: {
+      shortcut: '',
+      screenshotShortcut: 'Ctrl+Shift+A'
+    },
+    previousShortcuts: {
+      shortcut: 'Alt+Space',
+      screenshotShortcut: 'Alt+A'
+    },
+    registerFn: (type, key) => {
+      registerCalls.push({ type, key })
+      return true
+    },
+    unregisterAllFn: () => {}
+  })
+
+  assert.strictEqual(res.success, true)
+  assert.strictEqual(registerCalls.length, 1)
+  assert.deepStrictEqual(registerCalls[0], { type: 'screenshotShortcut', key: 'Ctrl+Shift+A' })
+  assert.strictEqual(res.activeShortcuts.shortcut, '')
+  assert.strictEqual(res.activeShortcuts.screenshotShortcut, 'Ctrl+Shift+A')
+})
+
+test('executeShortcutTransaction: 注册失败时必须安全回滚并校验回滚结果', async () => {
+  const { executeShortcutTransaction } = await import('../src/shared/shortcutUtils.js')
+  const registerCalls = []
+
+  const res = executeShortcutTransaction({
+    targetShortcuts: {
+      shortcut: 'Ctrl+Shift+Space',
+      screenshotShortcut: 'ConflictKey'
+    },
+    previousShortcuts: {
+      shortcut: 'Alt+Space',
+      screenshotShortcut: 'Alt+A'
+    },
+    registerFn: (type, key) => {
+      registerCalls.push({ type, key })
+      if (key === 'ConflictKey') return false
+      return true
+    },
+    unregisterAllFn: () => {}
+  })
+
+  assert.strictEqual(res.success, false)
+  assert.strictEqual(res.failed.length, 1)
+  assert.strictEqual(res.failed[0].type, 'screenshotShortcut')
+  // 回滚成功恢复 previousShortcuts
+  assert.deepStrictEqual(res.activeShortcuts, {
+    shortcut: 'Alt+Space',
+    screenshotShortcut: 'Alt+A'
+  })
+})
+
+test('executeShortcutTransaction: 回滚失败时不能虚假汇报 activeShortcuts', async () => {
+  const { executeShortcutTransaction } = await import('../src/shared/shortcutUtils.js')
+  let attempt = 0
+
+  const res = executeShortcutTransaction({
+    targetShortcuts: {
+      shortcut: 'NewKey1',
+      screenshotShortcut: 'NewKey2'
+    },
+    previousShortcuts: {
+      shortcut: 'PrevKey1',
+      screenshotShortcut: 'PrevKey2'
+    },
+    registerFn: (type, key) => {
+      attempt++
+      if (key === 'NewKey2') return false // 触发回滚
+      if (key === 'PrevKey1') return false // 回滚时 PrevKey1 也注册失败
+      if (key === 'PrevKey2') return true  // PrevKey2 回滚成功
+      return true
+    },
+    unregisterAllFn: () => {}
+  })
+
+  assert.strictEqual(res.success, false)
+  // PrevKey1 回滚失败，activeShortcuts 中不应包含 PrevKey1
+  assert.strictEqual(res.activeShortcuts.shortcut, undefined)
+  assert.strictEqual(res.activeShortcuts.screenshotShortcut, 'PrevKey2')
+})
+
+test('executeShortcutTransaction: 两个快捷键设置相同组合时必须拒绝注册', async () => {
+  const { executeShortcutTransaction } = await import('../src/shared/shortcutUtils.js')
+  let registerCalled = false
+
+  const res = executeShortcutTransaction({
+    targetShortcuts: {
+      shortcut: 'Ctrl+Shift+A',
+      screenshotShortcut: 'Ctrl+Shift+A'
+    },
+    previousShortcuts: {
+      shortcut: 'Alt+Space',
+      screenshotShortcut: 'Alt+A'
+    },
+    registerFn: () => {
+      registerCalled = true
+      return true
+    },
+    unregisterAllFn: () => {}
+  })
+
+  assert.strictEqual(res.success, false)
+  assert.strictEqual(registerCalled, false, '重复快捷键冲突时不得调用 register')
+  assert.ok(res.failed[0].reason.includes('重复') || res.failed[0].reason.includes('相同组合'))
+})
+
+// ─── 2. 跨平台默认快捷键测试 (Issue 2) ─────────────────────────
+test('getDefaultShortcuts: 跨平台默认快捷键匹配与隔离', async () => {
+  const { getDefaultShortcuts } = await import('../src/shared/shortcutUtils.js')
+  
+  const macDefaults = getDefaultShortcuts('darwin')
+  assert.strictEqual(macDefaults.shortcut, 'Alt+Space')
+  assert.strictEqual(macDefaults.screenshotShortcut, 'Alt+A')
+
+  const winDefaults = getDefaultShortcuts('win32')
+  assert.strictEqual(winDefaults.shortcut, 'Ctrl+Shift+Space', 'Windows 默认主快捷键应为 Ctrl+Shift+Space')
+  assert.strictEqual(winDefaults.screenshotShortcut, 'Ctrl+Shift+A', 'Windows 默认截图快捷键应为 Ctrl+Shift+A')
+  assert.notStrictEqual(winDefaults.shortcut, 'Alt+Space', 'Windows 默认不得为 Alt+Space')
+})
+
+// ─── 3. Windows 多显示器采集源精准匹配测试 (Issue 3) ────────────
+test('selectDesktopCapturerSource: display_id 精确匹配与短 ID 防模糊匹配', async () => {
+  const { selectDesktopCapturerSource } = await import('../src/shared/screenUtils.js')
+  
+  const mockSources = [
+    { id: 'screen:10:0', display_id: '10', name: 'Screen 10' },
+    { id: 'screen:1:0', display_id: '1', name: 'Screen 1' },
+    { id: 'screen:277909845:0', display_id: '277909845', name: 'Screen Secondary' }
+  ]
+
+  // 1. 精确匹配 display_id === '1'
+  const match1 = selectDesktopCapturerSource(mockSources, { id: 1 })
+  assert.strictEqual(match1.matched, true)
+  assert.strictEqual(match1.source.display_id, '1')
+  assert.notStrictEqual(match1.source.display_id, '10', '绝不能使用 includes 将 1 模糊匹配为 10')
+
+  // 2. 精确匹配副屏 display_id === '277909845'
+  const match2 = selectDesktopCapturerSource(mockSources, { id: '277909845', bounds: { x: -1920, y: 0, width: 1920, height: 1080 } })
+  assert.strictEqual(match2.matched, true)
+  assert.strictEqual(match2.source.display_id, '277909845')
+
+  // 3. source.id token 冒号匹配 (无 display_id 字段时的回退)
+  const tokenSources = [
+    { id: 'screen:65537:0', name: 'Display 65537' },
+    { id: 'screen:65538:0', name: 'Display 65538' }
+  ]
+  const matchToken = selectDesktopCapturerSource(tokenSources, { id: 65538 })
+  assert.strictEqual(matchToken.matched, true)
+  assert.strictEqual(matchToken.source.id, 'screen:65538:0')
+
+  // 4. 找不到对应屏幕时明确汇报 matched: false 与原因
+  const unmatch = selectDesktopCapturerSource(mockSources, { id: 99999 })
+  assert.strictEqual(unmatch.matched, false)
+  assert.ok(unmatch.reason.includes('未能精准匹配'), '未匹配时必须提供明确降级理由')
+})
+
+// ─── 4. 高 DPI 与物理像素裁剪坐标变换测试 (Issue 4) ─────────────
+test('calculatePhysicalCropRect: 100%、125%、150%、200% 物理分辨率转换精准度', async () => {
+  const { calculatePhysicalCropRect } = await import('../src/shared/snipperCropUtils.js')
+
+  // 1. 100% 缩放 (1920x1080 -> 1920x1080)
+  const res100 = calculatePhysicalCropRect(
+    { x: 100, y: 100, w: 500, h: 300 },
+    { width: 1920, height: 1080 },
+    { width: 1920, height: 1080 }
+  )
+  assert.strictEqual(res100.valid, true)
+  assert.strictEqual(res100.x, 100)
+  assert.strictEqual(res100.y, 100)
+  assert.strictEqual(res100.width, 500)
+  assert.strictEqual(res100.height, 300)
+  assert.strictEqual(res100.scaleX, 1)
+  assert.strictEqual(res100.scaleY, 1)
+
+  // 2. 125% 缩放 (逻辑 1536x864, 原图物理 1920x1080)
+  const res125 = calculatePhysicalCropRect(
+    { x: 100, y: 100, w: 400, h: 200 },
+    { width: 1536, height: 864 },
+    { width: 1920, height: 1080 }
+  )
+  assert.strictEqual(res125.valid, true)
+  assert.strictEqual(res125.scaleX, 1.25)
+  assert.strictEqual(res125.scaleY, 1.25)
+  assert.strictEqual(res125.x, 125)
+  assert.strictEqual(res125.y, 125)
+  assert.strictEqual(res125.width, 500)
+  assert.strictEqual(res125.height, 250)
+
+  // 3. 150% 缩放 (逻辑 1707x960, 原图物理 2560x1440)
+  const res150 = calculatePhysicalCropRect(
+    { x: 200, y: 100, w: 600, h: 400 },
+    { width: 1706.6666, height: 960 },
+    { width: 2560, height: 1440 }
+  )
+  assert.strictEqual(res150.valid, true)
+  assert.strictEqual(Math.round(res150.scaleX * 100) / 100, 1.5)
+  assert.strictEqual(res150.scaleY, 1.5)
+  assert.strictEqual(res150.width, 900)
+  assert.strictEqual(res150.height, 600)
+
+  // 4. 200% 缩放 (逻辑 1920x1080, 原图物理 3840x2160)
+  const res200 = calculatePhysicalCropRect(
+    { x: 50, y: 50, w: 200, h: 100 },
+    { width: 1920, height: 1080 },
+    { width: 3840, height: 2160 }
+  )
+  assert.strictEqual(res200.scaleX, 2)
+  assert.strictEqual(res200.scaleY, 2)
+  assert.strictEqual(res200.width, 400)
+  assert.strictEqual(res200.height, 200)
+
+  // 5. 逆向拖拽与边界越界安全截断
+  const resOverflow = calculatePhysicalCropRect(
+    { x: 1900, y: 1000, w: 200, h: 200 },
+    { width: 1920, height: 1080 },
+    { width: 1920, height: 1080 }
+  )
+  assert.strictEqual(resOverflow.valid, true)
+  assert.strictEqual(resOverflow.x, 1900)
+  assert.strictEqual(resOverflow.y, 1000)
+  assert.strictEqual(resOverflow.width, 20) // 1920 - 1900 = 20
+  assert.strictEqual(resOverflow.height, 80) // 1080 - 1000 = 80
+})
+
+// ─── 5. 截图标注物理像素渲染专项测试 (renderPhysicalAnnotations) ───────
+function createMockCanvasContext() {
+  const calls = []
+  return {
+    calls,
+    strokeStyle: '',
+    fillStyle: '',
+    lineWidth: 1,
+    lineCap: 'butt',
+    lineJoin: 'miter',
+    font: '',
+    textBaseline: 'alphabetic',
+    shadowColor: '',
+    shadowBlur: 0,
+    save() { calls.push({ method: 'save' }) },
+    restore() { calls.push({ method: 'restore' }) },
+    beginPath() { calls.push({ method: 'beginPath' }) },
+    closePath() { calls.push({ method: 'closePath' }) },
+    rect(x, y, w, h) { calls.push({ method: 'rect', args: [x, y, w, h] }) },
+    clip() { calls.push({ method: 'clip' }) },
+    strokeRect(x, y, w, h) { calls.push({ method: 'strokeRect', args: [x, y, w, h], strokeStyle: this.strokeStyle, lineWidth: this.lineWidth }) },
+    fillRect(x, y, w, h) { calls.push({ method: 'fillRect', args: [x, y, w, h], fillStyle: this.fillStyle }) },
+    stroke() { calls.push({ method: 'stroke', strokeStyle: this.strokeStyle, lineWidth: this.lineWidth }) },
+    fill() { calls.push({ method: 'fill', fillStyle: this.fillStyle }) },
+    moveTo(x, y) { calls.push({ method: 'moveTo', args: [x, y] }) },
+    lineTo(x, y) { calls.push({ method: 'lineTo', args: [x, y] }) },
+    arc(x, y, r, sa, ea) { calls.push({ method: 'arc', args: [x, y, r, sa, ea], fillStyle: this.fillStyle }) },
+    ellipse(x, y, rx, ry, rot, sa, ea) { calls.push({ method: 'ellipse', args: [x, y, rx, ry, rot, sa, ea], strokeStyle: this.strokeStyle, lineWidth: this.lineWidth }) },
+    fillText(text, x, y) { calls.push({ method: 'fillText', args: [text, x, y], font: this.font, fillStyle: this.fillStyle }) }
+  }
+}
+
+test('renderPhysicalAnnotations: tool: "rect" 正确调用 strokeRect 与处理负宽高', async () => {
+  const { renderPhysicalAnnotations } = await import('../src/shared/snipperCropUtils.js')
+  const ctx = createMockCanvasContext()
+  const cropRect = { x: 100, y: 100, width: 800, height: 600, scaleX: 2, scaleY: 2 }
+
+  // 正向矩形 + 逆向矩形 (负宽高)
+  const annotations = [
+    { tool: 'rect', color: '#ef4444', width: 3, x: 100, y: 100, w: 200, h: 150 },
+    { tool: 'rect', color: '#3b82f6', width: 2, x: 400, y: 300, w: -100, h: -50 }
+  ]
+
+  renderPhysicalAnnotations({ ctx, cropRect, annotations })
+
+  const strokeRectCalls = ctx.calls.filter((c) => c.method === 'strokeRect')
+  assert.strictEqual(strokeRectCalls.length, 2, '矩形必须产生 2 次 strokeRect 调用')
+
+  // 第 1 个：lx=100 -> px = 100*2 - 100 = 100, ly=100 -> py = 100*2 - 100 = 100, pw = 200*2 = 400, ph = 150*2 = 300
+  assert.deepStrictEqual(strokeRectCalls[0].args, [100, 100, 400, 300])
+  assert.strictEqual(strokeRectCalls[0].strokeStyle, '#ef4444')
+  assert.strictEqual(strokeRectCalls[0].lineWidth, 6) // width=3 * scaleFactor=2
+
+  // 第 2 个：逆向拖拽规范化后 rx=300, ry=250, rw=100, rh=50 -> px = 300*2 - 100 = 500, py = 250*2 - 100 = 400, pw = 200, ph = 100
+  assert.deepStrictEqual(strokeRectCalls[1].args, [500, 400, 200, 100])
+  assert.strictEqual(strokeRectCalls[1].strokeStyle, '#3b82f6')
+})
+
+test('renderPhysicalAnnotations: tool: "circle" 正确调用 ellipse 与处理负宽高', async () => {
+  const { renderPhysicalAnnotations } = await import('../src/shared/snipperCropUtils.js')
+  const ctx = createMockCanvasContext()
+  const cropRect = { x: 50, y: 50, width: 600, height: 600, scaleX: 1.5, scaleY: 1.5 }
+
+  const annotations = [
+    { tool: 'circle', color: '#10b981', width: 4, x: 100, y: 100, w: 200, h: 100 },
+    { tool: 'circle', color: '#f59e0b', width: 2, x: 300, y: 300, w: -100, h: -100 }
+  ]
+
+  renderPhysicalAnnotations({ ctx, cropRect, annotations })
+
+  const ellipseCalls = ctx.calls.filter((c) => c.method === 'ellipse')
+  assert.strictEqual(ellipseCalls.length, 2, '圆形必须产生 2 次 ellipse 调用')
+
+  // 第 1 个：cx=200, cy=150, rx=100, ry=50 -> 中心点 px = 200*1.5 - 50 = 250, py = 150*1.5 - 50 = 175, prx = 150, pry = 75
+  assert.deepStrictEqual(ellipseCalls[0].args, [250, 175, 150, 75, 0, 0, 2 * Math.PI])
+  assert.strictEqual(ellipseCalls[0].strokeStyle, '#10b981')
+  assert.strictEqual(ellipseCalls[0].lineWidth, 6) // 4 * 1.5 = 6
+
+  // 第 2 个：逆向拖拽规范化后 cx=250, cy=250, rx=50, ry=50 -> 中心点 px = 250*1.5 - 50 = 325, py = 325, prx = 75, pry = 75
+  assert.deepStrictEqual(ellipseCalls[1].args, [325, 325, 75, 75, 0, 0, 2 * Math.PI])
+  assert.strictEqual(ellipseCalls[1].strokeStyle, '#f59e0b')
+})
+
+test('renderPhysicalAnnotations: tool: "arrow" 正确调用 moveTo, lineTo, stroke, fill', async () => {
+  const { renderPhysicalAnnotations } = await import('../src/shared/snipperCropUtils.js')
+  const ctx = createMockCanvasContext()
+  const cropRect = { x: 0, y: 0, width: 800, height: 600, scaleX: 1, scaleY: 1 }
+
+  const annotations = [
+    { tool: 'arrow', color: '#ef4444', width: 3, fromX: 50, fromY: 50, toX: 200, toY: 150 }
+  ]
+
+  renderPhysicalAnnotations({ ctx, cropRect, annotations })
+
+  const hasMoveTo = ctx.calls.some((c) => c.method === 'moveTo' && c.args[0] === 50 && c.args[1] === 50)
+  const hasLineTo = ctx.calls.some((c) => c.method === 'lineTo' && c.args[0] === 200 && c.args[1] === 150)
+  const hasStroke = ctx.calls.some((c) => c.method === 'stroke')
+  const hasFill = ctx.calls.some((c) => c.method === 'fill')
+
+  assert.ok(hasMoveTo, '箭头轴线必须调用 moveTo(fromX, fromY)')
+  assert.ok(hasLineTo, '箭头轴线必须调用 lineTo(toX, toY)')
+  assert.ok(hasStroke, '箭头轴线必须调用 stroke')
+  assert.ok(hasFill, '箭头头部必须调用 fill')
+})
+
+test('renderPhysicalAnnotations: tool: "pen" 多点连续画线与单点绘制圆点', async () => {
+  const { renderPhysicalAnnotations } = await import('../src/shared/snipperCropUtils.js')
+  const ctx = createMockCanvasContext()
+  const cropRect = { x: 0, y: 0, width: 500, height: 500, scaleX: 1, scaleY: 1 }
+
+  const annotations = [
+    { tool: 'pen', color: '#ef4444', width: 3, points: [{ x: 10, y: 10 }, { x: 20, y: 20 }, { x: 30, y: 15 }] },
+    { tool: 'pen', color: '#3b82f6', width: 4, points: [{ x: 100, y: 100 }] }
+  ]
+
+  renderPhysicalAnnotations({ ctx, cropRect, annotations })
+
+  // 多点画笔：moveTo(10, 10), lineTo(20, 20), lineTo(30, 15), stroke
+  assert.ok(ctx.calls.some((c) => c.method === 'moveTo' && c.args[0] === 10 && c.args[1] === 10))
+  assert.ok(ctx.calls.some((c) => c.method === 'lineTo' && c.args[0] === 20 && c.args[1] === 20))
+  assert.ok(ctx.calls.some((c) => c.method === 'lineTo' && c.args[0] === 30 && c.args[1] === 15))
+
+  // 单点画笔：arc(100, 100, ...) + fill
+  assert.ok(ctx.calls.some((c) => c.method === 'arc' && c.args[0] === 100 && c.args[1] === 100))
+  assert.ok(ctx.calls.some((c) => c.method === 'fill' && c.fillStyle === '#3b82f6'))
+})
+
+test('renderPhysicalAnnotations: tool: "mosaic" 绘制与负宽高安全无死循环', async () => {
+  const { renderPhysicalAnnotations } = await import('../src/shared/snipperCropUtils.js')
+  const ctx = createMockCanvasContext()
+  const cropRect = { x: 0, y: 0, width: 500, height: 500, scaleX: 1, scaleY: 1 }
+
+  const annotations = [
+    { tool: 'mosaic', x: 20, y: 20, w: 40, h: 40 },
+    { tool: 'mosaic', x: 100, y: 100, w: -30, h: -30 }
+  ]
+
+  renderPhysicalAnnotations({ ctx, cropRect, annotations })
+
+  const fillRectCalls = ctx.calls.filter((c) => c.method === 'fillRect')
+  assert.ok(fillRectCalls.length > 0, '马赛克必须产生小方块 fillRect 调用')
+  assert.ok(fillRectCalls.every((c) => c.args[2] > 0 && c.args[3] > 0), '马赛克方块尺寸必须为正值')
+})
+
+test('renderPhysicalAnnotations: 文字字号随 DPI 比例缩放 (size: 30 @ 150% -> 45px)', async () => {
+  const { renderPhysicalAnnotations } = await import('../src/shared/snipperCropUtils.js')
+  const ctx = createMockCanvasContext()
+  const cropRect = { x: 0, y: 0, width: 1000, height: 800, scaleX: 1.5, scaleY: 1.5 }
+
+  const textInputs = [
+    { x: 50, y: 80, text: 'ClipAI 高清截图', color: '#10b981', size: 30 }
+  ]
+
+  renderPhysicalAnnotations({ ctx, cropRect, textInputs })
+
+  const fillTextCalls = ctx.calls.filter((c) => c.method === 'fillText')
+  assert.strictEqual(fillTextCalls.length, 1)
+  assert.strictEqual(fillTextCalls[0].args[0], 'ClipAI 高清截图')
+  assert.strictEqual(fillTextCalls[0].args[1], 75) // 50 * 1.5 = 75
+  assert.strictEqual(fillTextCalls[0].args[2], 120) // 80 * 1.5 = 120
+  assert.ok(fillTextCalls[0].font.includes('45px'), `字号必须为 45px (30 * 1.5)，实际为: ${fillTextCalls[0].font}`)
+  assert.strictEqual(fillTextCalls[0].fillStyle, '#10b981')
+})
+
+test('renderPhysicalAnnotations: 多标注组合全部在同一选区内绘制', async () => {
+  const { renderPhysicalAnnotations } = await import('../src/shared/snipperCropUtils.js')
+  const ctx = createMockCanvasContext()
+  const cropRect = { x: 100, y: 100, width: 800, height: 600, scaleX: 1, scaleY: 1 }
+
+  const annotations = [
+    { tool: 'rect', color: '#ef4444', width: 3, x: 150, y: 150, w: 100, h: 80 },
+    { tool: 'circle', color: '#3b82f6', width: 3, x: 300, y: 150, w: 80, h: 80 },
+    { tool: 'arrow', color: '#10b981', width: 3, fromX: 400, fromY: 150, toX: 450, toY: 200 },
+    { tool: 'pen', color: '#f59e0b', width: 3, points: [{ x: 500, y: 150 }, { x: 520, y: 170 }] },
+    { tool: 'mosaic', x: 200, y: 300, w: 50, h: 50 }
+  ]
+  const textInputs = [
+    { x: 300, y: 300, text: 'Hello', color: '#ffffff', size: 18 }
+  ]
+
+  renderPhysicalAnnotations({ ctx, cropRect, annotations, textInputs })
+
+  assert.ok(ctx.calls.some((c) => c.method === 'strokeRect'), '必须包含 strokeRect')
+  assert.ok(ctx.calls.some((c) => c.method === 'ellipse'), '必须包含 ellipse')
+  assert.ok(ctx.calls.some((c) => c.method === 'stroke'), '必须包含 stroke')
+  assert.ok(ctx.calls.some((c) => c.method === 'fillRect'), '必须包含 fillRect')
+  assert.ok(ctx.calls.some((c) => c.method === 'fillText'), '必须包含 fillText')
+})
+
+test('renderPhysicalAnnotations: 选区偏移 (cropRect.x/y > 0) 正确平移坐标', async () => {
+  const { renderPhysicalAnnotations } = await import('../src/shared/snipperCropUtils.js')
+  const ctx = createMockCanvasContext()
+  const cropRect = { x: 300, y: 200, width: 500, height: 400, scaleX: 1, scaleY: 1 }
+
+  const annotations = [
+    { tool: 'rect', color: '#ef4444', width: 2, x: 350, y: 250, w: 100, h: 100 }
+  ]
+  const textInputs = [
+    { x: 400, y: 300, text: 'Offset Text', color: '#fff', size: 20 }
+  ]
+
+  renderPhysicalAnnotations({ ctx, cropRect, annotations, textInputs })
+
+  const strokeRectCall = ctx.calls.find((c) => c.method === 'strokeRect')
+  // lx=350 -> px = 350 - 300 = 50, ly=250 -> py = 250 - 200 = 50
+  assert.deepStrictEqual(strokeRectCall.args, [50, 50, 100, 100])
+
+  const fillTextCall = ctx.calls.find((c) => c.method === 'fillText')
+  // lx=400 -> px = 400 - 300 = 100, ly=300 -> py = 300 - 200 = 100
+  assert.deepStrictEqual(fillTextCall.args.slice(1), [100, 100])
+})
+
+test('renderPhysicalAnnotations: 非等比缩放 (scaleX !== scaleY) 分别转换坐标与尺寸', async () => {
+  const { renderPhysicalAnnotations } = await import('../src/shared/snipperCropUtils.js')
+  const ctx = createMockCanvasContext()
+  const cropRect = { x: 0, y: 0, width: 1000, height: 1000, scaleX: 1.25, scaleY: 1.5 }
+
+  const annotations = [
+    { tool: 'rect', color: '#ef4444', width: 2, x: 100, y: 100, w: 200, h: 100 },
+    { tool: 'circle', color: '#3b82f6', width: 2, x: 400, y: 200, w: 200, h: 100 }
+  ]
+
+  renderPhysicalAnnotations({ ctx, cropRect, annotations })
+
+  const strokeRectCall = ctx.calls.find((c) => c.method === 'strokeRect')
+  // px = 100*1.25 = 125, py = 100*1.5 = 150, pw = 200*1.25 = 250, ph = 100*1.5 = 150
+  assert.deepStrictEqual(strokeRectCall.args, [125, 150, 250, 150])
+
+  const ellipseCall = ctx.calls.find((c) => c.method === 'ellipse')
+  // cx=500 -> px=500*1.25=625, cy=250 -> py=250*1.5=375, prx = (200*1.25)/2 = 125, pry = (100*1.5)/2 = 75
+  assert.deepStrictEqual(ellipseCall.args, [625, 375, 125, 75, 0, 0, 2 * Math.PI])
+})
+
+test('生产数据契约校验: renderPhysicalAnnotations 兼容读取 tool/type、width/size、size/fontSize', async () => {
+  const { renderPhysicalAnnotations } = await import('../src/shared/snipperCropUtils.js')
+  const ctx = createMockCanvasContext()
+  const cropRect = { x: 0, y: 0, width: 800, height: 600, scaleX: 1, scaleY: 1 }
+
+  // 1. 标准生产契约 (tool, width, size)
+  const prodAnn = [{ tool: 'rect', color: '#ef4444', width: 5, x: 10, y: 10, w: 50, h: 50 }]
+  const prodTxt = [{ text: 'Prod', color: '#fff', size: 24, x: 10, y: 10 }]
+
+  renderPhysicalAnnotations({ ctx, cropRect, annotations: prodAnn, textInputs: prodTxt })
+
+  const strokeRectCalls = ctx.calls.filter((c) => c.method === 'strokeRect')
+  assert.strictEqual(strokeRectCalls[0].lineWidth, 5, '必须读取 width: 5')
+
+  const fillTextCalls = ctx.calls.filter((c) => c.method === 'fillText')
+  assert.ok(fillTextCalls[0].font.includes('24px'), '必须读取 size: 24')
+
+  // 2. 兼容旧版/备选字段 (type, size 作为线宽, fontSize 作为字号)
+  const ctxLegacy = createMockCanvasContext()
+  const legacyAnn = [{ type: 'rect', color: '#ef4444', size: 6, x: 10, y: 10, w: 50, h: 50 }]
+  const legacyTxt = [{ text: 'Legacy', color: '#fff', fontSize: 20, x: 10, y: 10 }]
+
+  renderPhysicalAnnotations({ ctx: ctxLegacy, cropRect, annotations: legacyAnn, textInputs: legacyTxt })
+
+  const legacyStroke = ctxLegacy.calls.filter((c) => c.method === 'strokeRect')
+  assert.strictEqual(legacyStroke[0].lineWidth, 6, '兼容读取 size 作为线宽')
+
+  const legacyFill = ctxLegacy.calls.filter((c) => c.method === 'fillText')
+  assert.ok(legacyFill[0].font.includes('20px'), '兼容读取 fontSize 作为字号')
+})
+
 // ─────────────────────────────────────────────────────────────
 console.log(`\n🎉 全部测试执行完毕: 总计 ${passed + failed} 个测试, 通过 ${passed} 个, 失败 ${failed} 个\n`)
 

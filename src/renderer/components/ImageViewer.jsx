@@ -9,6 +9,11 @@ export default function ImageViewer() {
     window.clipai?.getSettings?.().then((st) => {
       if (st?.language) setLang(st.language)
     }).catch(() => {})
+
+    const unsub = window.clipai?.onSettingsChanged?.((st) => {
+      if (st?.language) setLang(st.language)
+    })
+    return () => unsub?.()
   }, [])
 
   const [image, setImage] = useState(null)
@@ -61,11 +66,20 @@ export default function ImageViewer() {
   const canvasRef = useRef(null)
   const baseCanvasRef = useRef(null)
   const textareaRef = useRef(null)
+  const prevFloatingRef = useRef(null)
 
   const showToast = (msg, icon = '✅') => {
     setToast({ msg, icon })
     setTimeout(() => setToast(null), 2000)
   }
+
+  const handleClose = useCallback(() => {
+    if (window.clipai?.closeImageViewer) {
+      window.clipai.closeImageViewer()
+    } else {
+      window.close()
+    }
+  }, [])
 
   // 初始化加载图片
   useEffect(() => {
@@ -116,12 +130,17 @@ export default function ImageViewer() {
     initBaseCanvas()
   }, [initBaseCanvas])
 
-  // 自动聚焦文字输入框
+  // 自动聚焦文字输入框（仅在首次弹出或切换 ID 时聚焦并选中，避免连续输入时被全选覆盖）
   useEffect(() => {
-    if (floatingText && textareaRef.current) {
-      textareaRef.current.focus()
-      textareaRef.current.select()
+    if (floatingText && (!prevFloatingRef.current || prevFloatingRef.current.id !== floatingText.id)) {
+      if (textareaRef.current) {
+        textareaRef.current.focus()
+        if (floatingText.text) {
+          textareaRef.current.select()
+        }
+      }
     }
+    prevFloatingRef.current = floatingText
   }, [floatingText])
 
   // 滚动至 AI 最新消息
@@ -273,7 +292,7 @@ export default function ImageViewer() {
         setTextItems((prev) => [...prev, newItem])
         setSelectedTextId(newId)
       }
-      showToast('文字已添加', '🔤')
+      showToast(t('imageViewer.toastTextAdded'), '🔤')
     } else if (floatingText.id) {
       // 若清空了已有文字，则删除
       setTextItems((prev) => prev.filter((t) => t.id !== floatingText.id))
@@ -864,11 +883,11 @@ export default function ImageViewer() {
     if (textItems.length > 0 && selectedTextId) {
       setTextItems((prev) => prev.filter((t) => t.id !== selectedTextId))
       setSelectedTextId(null)
-      showToast('已删除选中文字', '↩️')
+      showToast(t('imageViewer.toastTextDeleted'), '↩️')
     } else if (annotations.length > 0) {
       setAnnotations((prev) => prev.slice(0, -1))
       setSelectedIdx(null)
-      showToast('已撤销上一步标注', '↩️')
+      showToast(t('imageViewer.toastUndo'), '↩️')
     }
   }
 
@@ -957,21 +976,21 @@ export default function ImageViewer() {
     const handleKeyDown = (e) => {
       if (floatingText) return // 正在弹框输入时不拦截全局快捷键
 
-      if (e.key === 'Escape') {
+      if (e.key === 'Escape' || ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'w')) {
         if (showAIPanel) {
           setShowAIPanel(false)
         } else {
-          window.close()
+          handleClose()
         }
       } else if (e.key === 'Delete' || e.key === 'Backspace') {
         if (selectedTextId) {
           setTextItems((prev) => prev.filter((t) => t.id !== selectedTextId))
           setSelectedTextId(null)
-          showToast('已删除文字标注', '🗑️')
+          showToast(t('imageViewer.toastTextDeleted'), '🗑️')
         } else if (selectedIdx !== null) {
           setAnnotations((prev) => prev.filter((_, i) => i !== selectedIdx))
           setSelectedIdx(null)
-          showToast('已删除选中标注', '🗑️')
+          showToast(t('imageViewer.toastAnnotationDeleted'), '🗑️')
         }
       } else if (e.key === '0' && (e.metaKey || e.ctrlKey)) {
         setScale(1.0)
@@ -990,7 +1009,7 @@ export default function ImageViewer() {
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [showAIPanel, annotations, textItems, image, selectedIdx, selectedTextId, floatingText])
+  }, [showAIPanel, annotations, textItems, image, selectedIdx, selectedTextId, floatingText, handleClose])
 
   const copyImage = async () => {
     if (!image) return
@@ -1006,12 +1025,12 @@ export default function ImageViewer() {
         : await window.clipai?.copyToClipboard?.({ type: 'image', content: finalDataUrl })
 
       if (res && res.success) {
-        showToast('图片已复制到剪贴板', '📋')
+        showToast(t('imageViewer.toastImageCopied'), '📋')
       } else {
-        showToast(res?.error || '复制图片失败', '❌')
+        showToast(res?.error || 'Failed to copy', '❌')
       }
     } catch (err) {
-      showToast(err.message || '复制图片失败', '❌')
+      showToast(err.message || 'Failed to copy', '❌')
     }
   }
 
@@ -1020,7 +1039,7 @@ export default function ImageViewer() {
     if (!finalDataUrl) return
     const res = await window.clipai?.saveImageDialog?.(finalDataUrl)
     if (res?.success) {
-      showToast('图片已成功保存到本地', '💾')
+      showToast(t('imageViewer.toastImageSaved'), '💾')
     }
   }
 
@@ -1078,43 +1097,32 @@ export default function ImageViewer() {
   const copyText = (text, idx) => {
     navigator.clipboard.writeText(text)
     setCopiedIndex(idx)
-    showToast('文本已复制', '✅')
+    showToast(t('imageViewer.toastTextCopied'), '✅')
     setTimeout(() => setCopiedIndex(null), 1500)
   }
 
   const COLORS = ['#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#ffffff', '#000000']
-  const FONT_SIZES = [
-    { label: '小 (16px)', size: 16 },
-    { label: '中 (24px)', size: 24 },
-    { label: '大 (32px)', size: 32 },
-    { label: '特大 (44px)', size: 44 }
-  ]
-  const STROKE_WIDTHS = [
-    { label: '细', val: 2 },
-    { label: '中', val: 4 },
-    { label: '粗', val: 7 }
-  ]
-  const DENSITIES = [
-    { label: '细密 (6px)', val: 6 },
-    { label: '标准 (12px)', val: 12 },
-    { label: '强力 (20px)', val: 20 }
-  ]
-  const BRUSH_SIZES = [
-    { label: '小', val: 14 },
-    { label: '中', val: 24 },
-    { label: '大', val: 38 }
-  ]
-
-  if (!image) {
-    return (
-      <div style={{ width: '100vw', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#12131a', color: '#fff' }}>
-        <div style={{ textAlign: 'center' }}>
-          <div className="spinner" style={{ width: 24, height: 24, margin: '0 auto 12px' }} />
-          <div style={{ fontSize: 13, opacity: 0.7 }}>加载图片中...</div>
-        </div>
-      </div>
-    )
-  }
+  const FONT_SIZES = useMemo(() => [
+    { label: t('imageViewer.fontSmall'), size: 16 },
+    { label: t('imageViewer.fontMedium'), size: 24 },
+    { label: t('imageViewer.fontLarge'), size: 32 },
+    { label: t('imageViewer.fontExtraLarge'), size: 44 }
+  ], [t])
+  const STROKE_WIDTHS = useMemo(() => [
+    { label: t('imageViewer.strokeThin'), val: 2 },
+    { label: t('imageViewer.strokeMedium'), val: 4 },
+    { label: t('imageViewer.strokeThick'), val: 7 }
+  ], [t])
+  const DENSITIES = useMemo(() => [
+    { label: t('imageViewer.densityFine'), val: 6 },
+    { label: t('imageViewer.densityMedium'), val: 12 },
+    { label: t('imageViewer.densityStrong'), val: 20 }
+  ], [t])
+  const BRUSH_SIZES = useMemo(() => [
+    { label: t('imageViewer.sizeSmall'), val: 14 },
+    { label: t('imageViewer.sizeMedium'), val: 24 },
+    { label: t('imageViewer.sizeLarge'), val: 38 }
+  ], [t])
 
   return (
     <div
@@ -1129,7 +1137,7 @@ export default function ImageViewer() {
         flexDirection: 'column'
       }}
     >
-      {/* ── 顶部可拖拽原生标题栏 ── */}
+      {/* ── 顶部可拖拽原生标题栏（始终渲染，确保任何状态下均可关闭与最小化） ── */}
       <div
         style={{
           height: 38,
@@ -1147,9 +1155,9 @@ export default function ImageViewer() {
       >
         <div style={{ position: 'absolute', left: 14, display: 'flex', gap: 7, WebkitAppRegion: 'no-drag' }}>
           <div
-            onClick={() => window.close()}
+            onClick={handleClose}
             style={{ width: 12, height: 12, borderRadius: '50%', backgroundColor: '#ff5f56', cursor: 'pointer', border: '1px solid rgba(0,0,0,0.2)' }}
-            title="关闭窗口"
+            title={t('imageViewer.closeWindowTip')}
           />
           <div
             onClick={() => {
@@ -1160,14 +1168,32 @@ export default function ImageViewer() {
               }
             }}
             style={{ width: 12, height: 12, borderRadius: '50%', backgroundColor: '#ffbd2e', cursor: 'pointer', border: '1px solid rgba(0,0,0,0.2)' }}
-            title="最小化"
+            title={t('imageViewer.minimizeTip')}
           />
         </div>
         <span style={{ fontSize: 12.5, fontWeight: 500, color: 'rgba(255, 255, 255, 0.85)' }}>
-          {image.isScreenshot ? '📸 高清截图查看与标注' : '🖼️ 高清图片查看器'}
+          {image ? (image.isScreenshot ? t('imageViewer.screenshotTitle') : t('imageViewer.viewerTitle')) : t('imageViewer.viewerTitle')}
           {naturalSize.width > 0 && ` (${naturalSize.width} × ${naturalSize.height})`}
         </span>
       </div>
+
+      {!image ? (
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}>
+          <div style={{ textAlign: 'center' }}>
+            <div className="spinner" style={{ width: 28, height: 28, margin: '0 auto 14px' }} />
+            <div style={{ fontSize: 13, opacity: 0.75, marginBottom: 12 }}>{t('imageViewer.loadingImage')}</div>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={handleClose}
+              style={{ fontSize: 12, padding: '4px 14px', borderRadius: 14, color: 'rgba(255,255,255,0.8)' }}
+            >
+              {t('imageViewer.closeWindow')}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <>
 
       {/* ── 顶部悬浮导航工具栏 ── */}
       <div
@@ -1193,7 +1219,7 @@ export default function ImageViewer() {
           className="btn btn-ghost"
           style={{ padding: '4px 8px', fontSize: 12, borderRadius: 16, color: '#fff' }}
           onClick={() => setScale((s) => Math.min(s + 0.25, 8.0))}
-          title="放大 (⌘+ / 滚轮上滑)"
+          title={t('imageViewer.zoomInTip')}
         >
           🔍+
         </button>
@@ -1201,7 +1227,7 @@ export default function ImageViewer() {
           className="btn btn-ghost"
           style={{ padding: '4px 8px', fontSize: 12, borderRadius: 16, color: '#fff' }}
           onClick={() => setScale((s) => Math.max(s - 0.25, 0.1))}
-          title="缩小 (⌘- / 滚轮下滑)"
+          title={t('imageViewer.zoomOutTip')}
         >
           🔍-
         </button>
@@ -1209,7 +1235,7 @@ export default function ImageViewer() {
           className="btn btn-ghost"
           style={{ padding: '4px 8px', fontSize: 12, borderRadius: 16, color: '#fff' }}
           onClick={() => { setScale(1.0); setPosition({ x: 0, y: 0 }) }}
-          title="适应窗口 (⌘0)"
+          title={t('imageViewer.fitWindowTip')}
         >
           {Math.round(scale * 100)}%
         </button>
@@ -1217,9 +1243,9 @@ export default function ImageViewer() {
           className="btn btn-ghost"
           style={{ padding: '4px 8px', fontSize: 12, borderRadius: 16, color: '#fff' }}
           onClick={() => setRotation((r) => (r + 90) % 360)}
-          title="顺时针旋转 90°"
+          title={t('imageViewer.rotateTip')}
         >
-          ↺ 旋转
+          {t('imageViewer.rotate')}
         </button>
 
         <div style={{ width: 1, height: 16, background: 'rgba(255, 255, 255, 0.15)' }} />
@@ -1238,9 +1264,9 @@ export default function ImageViewer() {
           onClick={() => {
             setIsAnnotating(!isAnnotating)
           }}
-          title="开启/关闭涂鸦标注工具"
+          title={t('imageViewer.annotationModeTip')}
         >
-          ✏️ 标注模式
+          {t('imageViewer.annotationMode')}
         </button>
 
         <div style={{ width: 1, height: 16, background: 'rgba(255, 255, 255, 0.15)' }} />
@@ -1249,17 +1275,17 @@ export default function ImageViewer() {
           className="btn btn-ghost"
           style={{ padding: '4px 8px', fontSize: 12, borderRadius: 16, color: '#fff' }}
           onClick={copyImage}
-          title="复制到剪贴板 (⌘C)"
+          title={t('imageViewer.copyTip')}
         >
-          📋 复制
+          {t('imageViewer.copy')}
         </button>
         <button
           className="btn btn-ghost"
           style={{ padding: '4px 8px', fontSize: 12, borderRadius: 16, color: '#fff' }}
           onClick={saveImage}
-          title="保存到本地 (⌘S)"
+          title={t('imageViewer.saveTip')}
         >
-          💾 保存
+          {t('imageViewer.save')}
         </button>
 
         <div style={{ width: 1, height: 16, background: 'rgba(255, 255, 255, 0.15)' }} />
@@ -1269,7 +1295,7 @@ export default function ImageViewer() {
           style={{ padding: '4px 12px', fontSize: 12, borderRadius: 16, fontWeight: 600 }}
           onClick={() => setShowAIPanel(!showAIPanel)}
         >
-          ✨ 问 AI
+          {t('imageViewer.askAI')}
         </button>
       </div>
 
@@ -1302,23 +1328,23 @@ export default function ImageViewer() {
                   className={`segmented-btn ${mosaicStyle === 'brush' ? 'active' : ''}`}
                   style={{ fontSize: 11, padding: '3px 8px' }}
                   onClick={() => setMosaicStyle('brush')}
-                  title="鼠标自由涂抹打码"
+                  title={t('imageViewer.mosaicBrushTip')}
                 >
-                  🖌️ 自由涂抹
+                  {t('imageViewer.mosaicBrush')}
                 </button>
                 <button
                   className={`segmented-btn ${mosaicStyle === 'rect' ? 'active' : ''}`}
                   style={{ fontSize: 11, padding: '3px 8px' }}
                   onClick={() => setMosaicStyle('rect')}
-                  title="矩形框选打码"
+                  title={t('imageViewer.mosaicRectTip')}
                 >
-                  🔲 矩形框选
+                  {t('imageViewer.mosaicRect')}
                 </button>
               </div>
 
               <div style={{ width: 1, height: 16, background: 'rgba(255,255,255,0.2)' }} />
 
-              <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', fontWeight: 600 }}>密度:</span>
+              <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', fontWeight: 600 }}>{t('imageViewer.density')}</span>
               <div style={{ display: 'flex', gap: 3 }}>
                 {DENSITIES.map((d) => (
                   <button
@@ -1335,7 +1361,7 @@ export default function ImageViewer() {
               {mosaicStyle === 'brush' && (
                 <>
                   <div style={{ width: 1, height: 16, background: 'rgba(255,255,255,0.2)' }} />
-                  <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', fontWeight: 600 }}>笔刷:</span>
+                  <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', fontWeight: 600 }}>{t('imageViewer.brush')}</span>
                   <div style={{ display: 'flex', gap: 3 }}>
                     {BRUSH_SIZES.map((b) => (
                       <button
@@ -1374,7 +1400,7 @@ export default function ImageViewer() {
                 animation: 'fadeIn 0.15s ease'
               }}
             >
-              <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', fontWeight: 600 }}>线条粗细:</span>
+              <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', fontWeight: 600 }}>{t('imageViewer.strokeWidth')}</span>
               <div style={{ display: 'flex', gap: 3 }}>
                 {STROKE_WIDTHS.map((s) => (
                   <button
@@ -1390,7 +1416,7 @@ export default function ImageViewer() {
 
               <div style={{ width: 1, height: 16, background: 'rgba(255,255,255,0.2)' }} />
 
-              <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', fontWeight: 600 }}>颜色:</span>
+              <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', fontWeight: 600 }}>{t('imageViewer.color')}</span>
               <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
                 {COLORS.map((c) => (
                   <div
@@ -1437,7 +1463,7 @@ export default function ImageViewer() {
                 animation: 'fadeIn 0.15s ease'
               }}
             >
-              <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', fontWeight: 600 }}>字号:</span>
+              <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', fontWeight: 600 }}>{t('imageViewer.fontSize')}</span>
               <div style={{ display: 'flex', gap: 3 }}>
                 {FONT_SIZES.map((f) => (
                   <button
@@ -1461,7 +1487,7 @@ export default function ImageViewer() {
 
               <div style={{ width: 1, height: 16, background: 'rgba(255,255,255,0.2)' }} />
 
-              <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', fontWeight: 600 }}>文字颜色:</span>
+              <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', fontWeight: 600 }}>{t('imageViewer.textColor')}</span>
               <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
                 {COLORS.map((c) => (
                   <div
@@ -1629,6 +1655,11 @@ export default function ImageViewer() {
               src={getImageSrc()}
               alt="viewer target"
               onLoad={handleImageLoad}
+              onError={(e) => {
+                if (image?.thumbnail && e.target.src !== image.thumbnail) {
+                  e.target.src = image.thumbnail
+                }
+              }}
               style={{
                 maxWidth: '90vw',
                 maxHeight: '85vh',
@@ -1658,7 +1689,7 @@ export default function ImageViewer() {
           </div>
         </div>
 
-        {/* ── 🔤 零延迟直接弹窗原生文字输入器 (绝不丢失焦点与点击) ── */}
+        {/* ── 🔤 极简透明原位文字输入器 (微信/Snipaste 原生轻量风格) ── */}
         {floatingText && (
           <div
             style={{
@@ -1666,47 +1697,26 @@ export default function ImageViewer() {
               left: floatingText.clientX,
               top: floatingText.clientY,
               zIndex: 9999,
-              background: 'rgba(15, 23, 42, 0.95)',
-              backdropFilter: 'blur(20px)',
-              border: '1.5px solid #38bdf8',
-              borderRadius: 8,
-              padding: '8px 10px',
-              boxShadow: '0 12px 36px rgba(0,0,0,0.8)',
-              display: 'flex',
+              background: 'rgba(10, 12, 20, 0.45)',
+              backdropFilter: 'blur(10px)',
+              border: '1.5px dashed #38bdf8',
+              borderRadius: 6,
+              padding: '4px 6px',
+              boxShadow: '0 8px 24px rgba(0, 0, 0, 0.6)',
+              display: 'inline-flex',
               flexDirection: 'column',
-              gap: 6,
-              minWidth: 220,
-              maxWidth: 360,
-              animation: 'fadeIn 0.12s ease'
+              minWidth: 140,
+              maxWidth: 420,
+              animation: 'fadeIn 0.1s ease'
             }}
             onMouseDown={(e) => e.stopPropagation()}
             onClick={(e) => e.stopPropagation()}
           >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: 4 }}>
-              <span style={{ fontSize: 11, color: '#38bdf8', fontWeight: 600 }}>🔤 {t('imageViewer.text')}</span>
-              <div style={{ display: 'flex', gap: 4 }}>
-                <button
-                  className="btn btn-ghost"
-                  style={{ fontSize: 10.5, padding: '1px 6px', color: 'rgba(255,255,255,0.6)' }}
-                  onClick={() => setFloatingText(null)}
-                >
-                  ✕ {t('actions.cancel')}
-                </button>
-                <button
-                  className="btn btn-primary"
-                  style={{ fontSize: 10.5, padding: '1px 8px', borderRadius: 10, background: '#10b981', borderColor: '#10b981' }}
-                  onClick={commitFloatingText}
-                >
-                  ✓ {t('imageViewer.done')} (Enter)
-                </button>
-              </div>
-            </div>
-
             <textarea
               ref={textareaRef}
               value={floatingText.text}
               placeholder={t('imageViewer.textInput')}
-              rows={Math.max(2, (floatingText.text || '').split('\n').length)}
+              rows={Math.max(1, (floatingText.text || '').split('\n').length)}
               onChange={(e) => setFloatingText({ ...floatingText, text: e.target.value })}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
@@ -1718,20 +1728,25 @@ export default function ImageViewer() {
               }}
               style={{
                 width: '100%',
-                color: floatingText.color,
-                fontSize: `${Math.min(26, Math.max(15, floatingText.fontSize))}px`,
+                color: floatingText.color || '#ef4444',
+                fontSize: `${Math.min(36, Math.max(16, floatingText.fontSize))}px`,
                 fontWeight: 'bold',
-                lineHeight: 1.35,
+                lineHeight: 1.3,
                 fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-                background: 'rgba(0, 0, 0, 0.4)',
-                border: '1px solid rgba(255,255,255,0.15)',
-                borderRadius: 4,
-                padding: '6px 8px',
+                background: 'transparent',
+                border: 'none',
+                padding: '2px 4px',
                 outline: 'none',
                 resize: 'none',
-                display: 'block'
+                display: 'block',
+                textShadow: '0 1px 3px rgba(0,0,0,0.85)'
               }}
             />
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6, paddingTop: 2 }}>
+              <span style={{ fontSize: 10, color: 'rgba(255, 255, 255, 0.65)', userSelect: 'none' }}>
+                ↵ 确认 · Esc 取消
+              </span>
+            </div>
           </div>
         )}
 
@@ -1933,6 +1948,8 @@ export default function ImageViewer() {
           <span>{toast.icon}</span>
           <span>{toast.msg}</span>
         </div>
+      )}
+      </>
       )}
 
       <style>{`
