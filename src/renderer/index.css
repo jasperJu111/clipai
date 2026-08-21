@@ -2660,8 +2660,20 @@ body {
 .compact-mode .title-bar {
   padding: 6px 10px;
 }
-.compact-mode .title-bar-logo span:last-child {
-  display: none;
+.title-bar-version {
+  display: inline-flex !important;
+  align-items: center;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--accent, #6366f1);
+  background: rgba(99, 102, 241, 0.15);
+  border: 1px solid rgba(99, 102, 241, 0.35);
+  padding: 1px 6px;
+  border-radius: 6px;
+  margin-left: 6px;
+  letter-spacing: 0.3px;
+  line-height: 14px;
+  user-select: none;
 }
 .compact-mode .nav-tabs {
   padding: 4px 6px;

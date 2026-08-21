@@ -386,7 +386,7 @@ export default function App() {
                 开发版
               </span>
             )}
-            <span style={{ fontSize: '10px', color: 'var(--text-muted)', marginLeft: 2 }}>v0.1</span>
+            <span className="title-bar-version">v0.1.3</span>
           </div>
         </div>
 

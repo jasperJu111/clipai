@@ -1494,7 +1494,7 @@ export default function Settings({
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
             <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Version</span>
-            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>v0.1.0 (MVP)</span>
+            <span style={{ fontSize: 12, color: 'var(--accent, #6366f1)', fontWeight: 600 }}>v0.1.3 (Official)</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
             <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>License</span>
