@@ -23,9 +23,9 @@
     "vite": "^5.1.6"
   },
   "dependencies": {
+    "electron-store": "^8.2.0",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "electron-store": "^8.2.0"
+    "react-dom": "^18.2.0"
   },
   "build": {
     "afterPack": "scripts/after-pack-mac.cjs",
@@ -58,9 +58,6 @@
       "createStartMenuShortcut": true,
       "shortcutName": "ClipAI",
       "deleteAppDataOnUninstall": false
-    },
-    "linux": {
-      "target": "AppImage"
     }
   }
 }

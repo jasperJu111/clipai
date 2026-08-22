@@ -172,7 +172,10 @@ function PromptModal({ prompt, isClone = false, onSave, onClose, t = (k) => k })
 }
 
 
-function detectCurrentLang(t) {
+function detectCurrentLang(t, language) {
+  if (language && typeof language === 'string' && language !== 'auto') {
+    return language;
+  }
   if (!t) return 'zh-CN';
   const catAll = t('prompts.catAll');
   const catDev = t('prompts.catDev');
@@ -181,13 +184,13 @@ function detectCurrentLang(t) {
   if (catAll === 'All') return 'en-US';
   if (catAll === 'Todo') return 'es-ES';
   if (catAll === 'Alle') return 'de-DE';
-  if (catAll === 'Tout') return 'fr-FR';
+  if (catAll === 'Tous' || catAll === 'Tout') return 'fr-FR';
   if (catDev === '程式') return 'zh-TW';
   return 'zh-CN';
 }
 
-export default function PromptManager({ prompts = [], onUpdate, onUseInAI, showToast, t = (k) => k }) {
-  const currentLang = detectCurrentLang(t);
+export default function PromptManager({ prompts = [], onUpdate, onUseInAI, showToast, t = (k) => k, language }) {
+  const currentLang = detectCurrentLang(t, language);
   // 当前激活库标签: 'community' (精选200) | 'custom' (私有库) | 'favorites' (我的收藏) | 'recent' (最近使用)
   const [activeTab, setActiveTab] = useState('community')
   const [activeCategory, setActiveCategory] = useState('all')

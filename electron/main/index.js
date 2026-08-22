@@ -41,6 +41,7 @@ import {
   backupUserData,
   registerImageProtocol,
   saveImageToStorage,
+  saveBufferToStorage,
   saveDataUrlToStorage,
   loadImageFromStorage,
   loadImageAsDataUrl,
@@ -487,102 +488,127 @@ function sendToRenderer(channel, data) {
 }
 
 // ─── 全屏交互截图 (跨平台支持 macOS + Windows / Linux) ─────────────
-async function openSnipperWindow() {
+let currentSnipperTransactionId = null
+
+function ensureSnipperWindow(targetDisplay) {
+  const display = targetDisplay || (screen.getCursorScreenPoint ? screen.getDisplayNearestPoint(screen.getCursorScreenPoint()) : null) || screen.getPrimaryDisplay()
+  const { x, y, width, height } = display.bounds
+
   if (snipperWindow && !snipperWindow.isDestroyed()) {
-    snipperWindow.focus()
-    return
+    snipperWindow.setBounds({ x, y, width, height })
+    return snipperWindow
   }
 
+  snipperWindow = new BrowserWindow({
+    x,
+    y,
+    width,
+    height,
+    frame: false,
+    transparent: true,
+    backgroundColor: '#00000000',
+    fullscreen: false,
+    show: false,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    enableLargerThanScreen: true,
+    icon: APP_ICON_PATH,
+    webPreferences: {
+      preload: getPreloadPath('snipper'),
+      sandbox: true,
+      contextIsolation: true
+    }
+  })
+
+  if (process.platform === 'darwin') {
+    snipperWindow.setAlwaysOnTop(true, 'screen-saver')
+    snipperWindow.setVisibleOnAllWorkspaces(true)
+  } else {
+    snipperWindow.setAlwaysOnTop(true, 'status')
+  }
+
+  const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged
+  if (isDev && process.env['ELECTRON_RENDERER_URL']) {
+    snipperWindow.loadURL(`${process.env['ELECTRON_RENDERER_URL']}?route=snipper#snipper`)
+  } else {
+    snipperWindow.loadFile(join(__dirname, '../renderer/index.html'), { hash: 'snipper', query: { route: 'snipper' } })
+  }
+
+  snipperWindow.on('closed', () => {
+    snipperWindow = null
+    currentSnipperData = null
+  })
+
+  return snipperWindow
+}
+
+async function captureDesktopSnapshot(targetDisplay) {
+  const { width, height } = targetDisplay.bounds
+  const scaleFactor = targetDisplay.scaleFactor || 1
+
+  try {
+    const sources = await desktopCapturer.getSources({
+      types: ['screen'],
+      thumbnailSize: { width: Math.round(width * scaleFactor), height: Math.round(height * scaleFactor) }
+    })
+    const selection = selectDesktopCapturerSource(sources, targetDisplay)
+    if (selection.source) {
+      const dataUrl = selection.source.thumbnail.toDataURL()
+      return {
+        type: 'dataUrl',
+        dataUrl,
+        bounds: { width, height },
+        scaleFactor
+      }
+    }
+  } catch (err) {
+    console.warn('[Snipper] 抓屏失败:', err.message)
+  }
+  return null
+}
+
+async function openSnipperWindow() {
   const cursorPoint = screen.getCursorScreenPoint()
   const targetDisplay = screen.getDisplayNearestPoint(cursorPoint) || screen.getPrimaryDisplay()
   const { x, y, width, height } = targetDisplay.bounds
   const scaleFactor = targetDisplay.scaleFactor || 1
 
+  // 如果主窗口处于显示状态，先静默隐藏以防被截入画面
+  if (mainWindow && !mainWindow.isDestroyed() && mainWindow.isVisible()) {
+    mainWindow.hide()
+  }
+
+  const transactionId = `snip_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
+  currentSnipperTransactionId = transactionId
+
   try {
-    let screenDataUrl = null
-
-    if (process.platform === 'darwin') {
-      const tmpFile = join(app.getPath('temp'), `clipai_screen_${Date.now()}.png`)
-      try {
-        const { execFile } = await import('child_process')
-        const { promisify } = await import('util')
-        const execFileAsync = promisify(execFile)
-        await execFileAsync('/usr/sbin/screencapture', ['-x', tmpFile])
-        const img = nativeImage.createFromPath(tmpFile)
-        if (!img.isEmpty()) {
-          screenDataUrl = img.toDataURL()
-        }
-      } catch (_) {} finally {
-        try { await fs.unlink(tmpFile) } catch (_) {}
-      }
+    const snapshot = await captureDesktopSnapshot(targetDisplay)
+    if (!snapshot) {
+      throw new Error('无法捕获屏幕画面')
     }
 
-    if (!screenDataUrl) {
-      const sources = await desktopCapturer.getSources({
-        types: ['screen'],
-        thumbnailSize: { width: Math.round(width * scaleFactor), height: Math.round(height * scaleFactor) }
-      })
-      const selection = selectDesktopCapturerSource(sources, targetDisplay)
-      if (selection.source) {
-        if (selection.reason) {
-          console.warn(`[Snipper] 屏幕选择提示: ${selection.reason}`)
-        }
-        screenDataUrl = selection.source.thumbnail.toDataURL()
-      }
-    }
+    if (currentSnipperTransactionId !== transactionId) return
 
-    if (!screenDataUrl) {
-      throw new Error('无法捕获屏幕画面，请检查系统屏幕录制/截图权限')
-    }
+    const win = ensureSnipperWindow(targetDisplay)
+    win.setBounds({ x, y, width, height })
 
     currentSnipperData = {
-      image: screenDataUrl,
+      image: snapshot.dataUrl,
       bounds: { width, height },
-      scaleFactor
+      scaleFactor,
+      transactionId
     }
 
-    snipperWindow = new BrowserWindow({
-      x,
-      y,
-      width,
-      height,
-      frame: false,
-      transparent: true,
-      fullscreen: false,
-      alwaysOnTop: true,
-      skipTaskbar: true,
-      enableLargerThanScreen: true,
-      icon: APP_ICON_PATH,
-      webPreferences: {
-        preload: getPreloadPath('snipper'),
-        sandbox: true,
-        contextIsolation: true
+    win.webContents.send('snipper-refresh', currentSnipperData)
+
+    setTimeout(() => {
+      if (snipperWindow && !snipperWindow.isDestroyed() && currentSnipperTransactionId === transactionId && !snipperWindow.isVisible()) {
+        snipperWindow.show()
+        snipperWindow.focus()
       }
-    })
-
-    snipperWindow.setBounds({ x, y, width, height })
-
-    if (process.platform === 'darwin') {
-      snipperWindow.setAlwaysOnTop(true, 'screen-saver')
-      snipperWindow.setVisibleOnAllWorkspaces(true)
-    } else {
-      snipperWindow.setAlwaysOnTop(true, 'status')
-    }
-
-    const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged
-    if (isDev && process.env['ELECTRON_RENDERER_URL']) {
-      snipperWindow.loadURL(`${process.env['ELECTRON_RENDERER_URL']}?route=snipper#snipper`)
-    } else {
-      snipperWindow.loadFile(join(__dirname, '../renderer/index.html'), { hash: 'snipper', query: { route: 'snipper' } })
-    }
-
-    snipperWindow.on('closed', () => {
-      snipperWindow = null
-      currentSnipperData = null
-    })
+    }, 150)
   } catch (err) {
-    console.error('启动全屏截图窗口失败，降级为直接后台截图:', err.message)
-    captureScreenshotDirect()
+    console.error('启动全屏截图窗口失败:', err.message)
   }
 }
 
@@ -609,12 +635,10 @@ async function captureScreenshot() {
         clipboard.writeImage(img)
         lastClipboardImageHash = img.toBitmap().length.toString()
 
-        // 截图成功后：发送成功通知并直接打开大图编辑/查看器窗口
+        // 截图成功后：发送成功通知
         if (mainWindow && !mainWindow.isDestroyed()) {
           sendToRenderer('screenshot-success', item)
         }
-        // 直接打开大图编辑器进行二次涂鸦与 AI 识别
-        openImageViewer(item)
 
         try { await fs.unlink(tmpFile) } catch {}
         return item
@@ -625,7 +649,7 @@ async function captureScreenshot() {
       try { await fs.unlink(tmpFile) } catch {}
     }
   } else {
-    // Windows / Linux: 打开全屏截图选区窗口
+    // Windows / Linux: 打开全屏交互截图窗口
     await openSnipperWindow()
   }
 
@@ -1128,7 +1152,7 @@ ipcMain.handle('clear-api-key', (event, provider) => {
 
 // ─── 设置与系统控制 IPC ───────────────────────────────────────
 ipcMain.handle('get-settings', (event) => {
-  if (!verifyIpcSender(event, ['main', 'viewer'])) return {}
+  if (!verifyIpcSender(event, ['main', 'viewer', 'snipper'])) return {}
   const allStored = store?.store || {}
   const safe = filterSafeSettings(allStored, DEFAULT_SETTINGS)
   const maskedKeys = getMaskedApiKeys()
@@ -1409,15 +1433,9 @@ ipcMain.handle('set-compact-mode', (event, isCompact) => {
 })
 
 // ─── 独立高清大图查看器窗口 ────────────────────────────────────────
-function openImageViewer(imageData) {
-  currentViewerImage = imageData
-
+function ensureImageViewerWindow() {
   if (imageViewerWindow && !imageViewerWindow.isDestroyed()) {
-    if (imageViewerWindow.isMinimized()) imageViewerWindow.restore()
-    imageViewerWindow.show()
-    imageViewerWindow.focus()
-    imageViewerWindow.webContents.send('load-viewer-image', imageData)
-    return { success: true }
+    return imageViewerWindow
   }
 
   imageViewerWindow = new BrowserWindow({
@@ -1426,7 +1444,7 @@ function openImageViewer(imageData) {
     minWidth: 440,
     minHeight: 340,
     title: 'ClipAI 高清图片查看器',
-    backgroundColor: '#12131a',
+    backgroundColor: '#090a0f',
     frame: false,
     show: false,
     icon: APP_ICON_PATH,
@@ -1451,8 +1469,6 @@ function openImageViewer(imageData) {
   }
 
   imageViewerWindow.once('ready-to-show', () => {
-    imageViewerWindow.show()
-    imageViewerWindow.focus()
     sendPayload()
   })
 
@@ -1474,6 +1490,17 @@ function openImageViewer(imageData) {
     imageViewerWindow = null
   })
 
+  return imageViewerWindow
+}
+
+function openImageViewer(imageData) {
+  currentViewerImage = imageData
+  const win = ensureImageViewerWindow()
+
+  if (win.isMinimized()) win.restore()
+  win.show()
+  win.focus()
+  win.webContents.send('load-viewer-image', imageData)
   return { success: true }
 }
 
@@ -1490,7 +1517,7 @@ ipcMain.handle('get-current-viewer-image', (event) => {
 ipcMain.handle('close-image-viewer', (event) => {
   if (!verifyIpcSender(event, ['viewer', 'main'])) return { success: false, error: 'Unauthorized' }
   if (imageViewerWindow && !imageViewerWindow.isDestroyed()) {
-    imageViewerWindow.close()
+    imageViewerWindow.hide()
   }
   return { success: true }
 })
@@ -1559,93 +1586,6 @@ ipcMain.handle('save-image-dialog', async (event, dataUrlOrPath) => {
   }
 })
 
-// ─── 截图交互窗口专用通道 ────────────────────────────────────────
-ipcMain.handle('get-snipper-data', (event) => {
-  if (!verifyIpcSender(event, ['snipper'])) return null
-  return currentSnipperData
-})
-
-ipcMain.handle('finish-snipper', async (event, payload) => {
-  if (!verifyIpcSender(event, ['snipper'])) return { success: false, error: 'Unauthorized' }
-
-  return executeFinishSnipperTransaction(payload, {
-    validatePayload: validateFinishSnipperPayload,
-    saveDataUrl: saveDataUrlToStorage,
-    addToHistory: async (item) => {
-      const res = await addToHistory(item)
-      if (!res || !res.success) {
-        throw new Error('历史记录持久化失败')
-      }
-      return res
-    },
-    deleteImageFile: async (filePath) => {
-      await deleteImageFile(filePath)
-    },
-    sendScreenshotSuccess: (item) => {
-      sendToRenderer('screenshot-success', item)
-    },
-    writeClipboardImage: async (dataUrl) => {
-      const parsed = parseDataUrl(dataUrl)
-      if (!parsed) return
-      const img = nativeImage.createFromBuffer(Buffer.from(parsed.base64Data, 'base64'))
-      if (img.isEmpty()) return
-
-      isMonitoringClipboard = false
-      try {
-        clipboard.writeImage(img)
-        lastClipboardImageHash = img.toBitmap().length.toString()
-      } finally {
-        setTimeout(() => {
-          isMonitoringClipboard = true
-        }, 800)
-      }
-    },
-    closeSnipperWindow: () => {
-      if (snipperWindow && !snipperWindow.isDestroyed()) {
-        snipperWindow.close()
-      }
-    },
-    showMainWindow: () => {
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.show()
-        mainWindow.focus()
-      }
-    },
-    openImageViewer: (item) => {
-      openImageViewer(item)
-    },
-    logWarning: (msg) => {
-      console.warn(sanitizeTextForLogs(msg))
-    }
-  })
-})
-
-ipcMain.handle('close-snipper', (event) => {
-  if (!verifyIpcSender(event, ['snipper'])) return { success: false, error: 'Unauthorized' }
-  if (snipperWindow && !snipperWindow.isDestroyed()) {
-    snipperWindow.close()
-  }
-  return { success: true }
-})
-
-ipcMain.handle('save-snipper-image', async (event, dataUrl) => {
-  if (!verifyIpcSender(event, ['snipper'])) return { success: false, error: 'Unauthorized' }
-  if (!dataUrl) return { success: false, error: '无截图数据' }
-  try {
-    const { filePath } = await dialog.showSaveDialog(snipperWindow || mainWindow, {
-      title: '保存截屏图片',
-      defaultPath: `ClipAI_Screenshot_${Date.now()}.png`,
-      filters: [{ name: 'PNG Image', extensions: ['png'] }]
-    })
-    if (!filePath) return { canceled: true }
-    const base64Data = dataUrl.replace(/^data:image\/\w+;base64,/, '')
-    await fs.writeFile(filePath, Buffer.from(base64Data, 'base64'))
-    return { success: true, filePath }
-  } catch (err) {
-    return { success: false, error: err.message }
-  }
-})
-
 ipcMain.handle('select-image-dialog', async (event) => {
   if (!verifyIpcSender(event, ['main'])) return { success: false, error: 'Unauthorized' }
   try {
@@ -1677,6 +1617,94 @@ ipcMain.handle('select-image-dialog', async (event) => {
   } catch (err) {
     return { success: false, error: err.message }
   }
+})
+
+// ─── 截图交互窗口专用通道 ────────────────────────────────────────
+ipcMain.handle('get-snipper-data', (event) => {
+  if (!verifyIpcSender(event, ['snipper'])) return null
+  return currentSnipperData
+})
+
+ipcMain.on('snipper-ready', (event, { transactionId } = {}) => {
+  if (!verifyIpcSender(event, ['snipper'])) return
+  if (currentSnipperTransactionId && transactionId && currentSnipperTransactionId !== transactionId) {
+    return
+  }
+  if (snipperWindow && !snipperWindow.isDestroyed()) {
+    snipperWindow.show()
+    snipperWindow.focus()
+  }
+})
+
+ipcMain.handle('finish-snipper', async (event, payload) => {
+  if (!verifyIpcSender(event, ['snipper'])) return { success: false, error: 'Unauthorized' }
+
+  return executeFinishSnipperTransaction(payload, {
+    validatePayload: validateFinishSnipperPayload,
+    saveDataUrl: saveDataUrlToStorage,
+    saveBuffer: saveBufferToStorage,
+    addToHistory: async (item) => {
+      const res = await addToHistory(item)
+      if (!res || !res.success) {
+        throw new Error('历史记录持久化失败')
+      }
+      return res
+    },
+    deleteImageFile: async (filePath) => {
+      await deleteImageFile(filePath)
+    },
+    sendScreenshotSuccess: (item) => {
+      sendToRenderer('screenshot-success', item)
+    },
+    writeClipboardImage: async (bufferOrDataUrl) => {
+      let img = null
+      if (typeof bufferOrDataUrl === 'string' && bufferOrDataUrl.startsWith('data:image')) {
+        const parsed = parseDataUrl(bufferOrDataUrl)
+        if (parsed) {
+          img = nativeImage.createFromBuffer(Buffer.from(parsed.base64Data, 'base64'))
+        }
+      } else if (bufferOrDataUrl) {
+        const buf = Buffer.isBuffer(bufferOrDataUrl) ? bufferOrDataUrl : Buffer.from(bufferOrDataUrl)
+        img = nativeImage.createFromBuffer(buf)
+      }
+      if (!img || img.isEmpty()) return
+
+      isMonitoringClipboard = false
+      try {
+        clipboard.writeImage(img)
+        lastClipboardImageHash = img.toBitmap().length.toString()
+      } finally {
+        setTimeout(() => {
+          isMonitoringClipboard = true
+        }, 800)
+      }
+    },
+    closeSnipperWindow: () => {
+      if (snipperWindow && !snipperWindow.isDestroyed()) {
+        snipperWindow.hide()
+      }
+    },
+    showMainWindow: () => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.show()
+        mainWindow.focus()
+      }
+    },
+    openImageViewer: (item) => {
+      openImageViewer(item)
+    },
+    logWarning: (msg) => {
+      console.warn(sanitizeTextForLogs(msg))
+    }
+  })
+})
+
+ipcMain.handle('close-snipper', (event) => {
+  if (!verifyIpcSender(event, ['snipper'])) return { success: false, error: 'Unauthorized' }
+  if (snipperWindow && !snipperWindow.isDestroyed()) {
+    snipperWindow.hide()
+  }
+  return { success: true }
 })
 
 // ─── 应用生命周期与启动就绪流程 ─────────────────────────────────
@@ -1730,6 +1758,15 @@ app.whenReady().then(async () => {
     shortcut: initialShortcut,
     screenshotShortcut: initialScreenshotShortcut
   })
+
+  // 11. 后台静默预热截图窗口 (Windows / Linux)
+  if (process.platform !== 'darwin') {
+    setTimeout(() => {
+      try {
+        ensureSnipperWindow()
+      } catch (_) {}
+    }, 1000)
+  }
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {

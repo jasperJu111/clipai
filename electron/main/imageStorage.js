@@ -229,6 +229,56 @@ export async function saveDataUrlToStorage(dataUrl, options = {}) {
 }
 
 /**
+ * 将二进制图片 Buffer 直接原子化保存为结构化磁盘文件 (零 Base64 损耗)
+ */
+export async function saveBufferToStorage(rawBuffer, options = {}) {
+  if (!rawBuffer || rawBuffer.length === 0) {
+    throw new Error('Image buffer is empty')
+  }
+
+  const buffer = Buffer.isBuffer(rawBuffer) ? rawBuffer : Buffer.from(rawBuffer)
+  if (buffer.length > MAX_IMAGE_FILE_SIZE) {
+    throw new Error(`图片超出大小限制 (${Math.round(buffer.length / 1024 / 1024)}MB > 25MB)`)
+  }
+
+  const img = nativeImage.createFromBuffer(buffer)
+  if (img.isEmpty()) {
+    throw new Error('Decoded image buffer is invalid or corrupt')
+  }
+
+  const { width, height } = img.getSize()
+  if (width > MAX_IMAGE_DIMENSION || height > MAX_IMAGE_DIMENSION) {
+    throw new Error(`图片尺寸过大 (${width}x${height} > ${MAX_IMAGE_DIMENSION}px)，已拦截防内存爆炸`)
+  }
+
+  const dir = getImagesDir()
+  const fileId = `img_${crypto.randomUUID()}`
+  const filename = `${fileId}.png`
+  const targetPath = join(dir, filename)
+
+  await atomicWriteFile(targetPath, buffer)
+
+  const thumbSize = calculateThumbnailSize(width, height, 240)
+  const thumbImg = img.resize(thumbSize)
+  const thumbDataUrl = `data:image/jpeg;base64,${thumbImg.toJPEG(75).toString('base64')}`
+
+  return {
+    id: options.id || Date.now(),
+    type: 'image',
+    filePath: filename,
+    thumbnail: thumbDataUrl,
+    mimeType: 'image/png',
+    width,
+    height,
+    byteSize: buffer.length,
+    timestamp: options.timestamp || new Date().toISOString(),
+    favorite: Boolean(options.favorite),
+    isScreenshot: Boolean(options.isScreenshot),
+    label: options.label || (options.isScreenshot ? '截图' : '图片')
+  }
+}
+
+/**
  * 读取已存储图片为 nativeImage
  */
 export async function loadImageFromStorage(filePathOrFilename) {

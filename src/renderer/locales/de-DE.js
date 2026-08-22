@@ -496,5 +496,13 @@ export default {
     "statPomodoroCount": "Fokus-Sessions",
     "statWaterCount": "Wasser-Erinnerungen",
     "statMoveCount": "Bewegungs-Erinnerungen"
+  },
+  "snipper": {
+      "cancelTip": "Screenshot abbrechen (Esc)",
+      "editAndAnnotate": "✏️ Anmerkung & Bearbeiten",
+      "editAndAnnotateTip": "Bearbeiten & Kommentieren (Editor öffnen)",
+      "copy": "✓ Kopieren",
+      "copyTip": "Fertigstellen & Kopieren (Enter)",
+      "fullscreenTip": "Leertaste für Vollbild"
   }
 }

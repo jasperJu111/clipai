@@ -1153,24 +1153,53 @@ export default function ImageViewer() {
           position: 'relative'
         }}
       >
-        <div style={{ position: 'absolute', left: 14, display: 'flex', gap: 7, WebkitAppRegion: 'no-drag' }}>
-          <div
-            onClick={handleClose}
-            style={{ width: 12, height: 12, borderRadius: '50%', backgroundColor: '#ff5f56', cursor: 'pointer', border: '1px solid rgba(0,0,0,0.2)' }}
-            title={t('imageViewer.closeWindowTip')}
-          />
-          <div
-            onClick={() => {
-              if (window.clipai?.minimizeImageViewer) {
-                window.clipai.minimizeImageViewer()
-              } else {
-                window.clipai?.minimizeWindow?.()
-              }
-            }}
-            style={{ width: 12, height: 12, borderRadius: '50%', backgroundColor: '#ffbd2e', cursor: 'pointer', border: '1px solid rgba(0,0,0,0.2)' }}
-            title={t('imageViewer.minimizeTip')}
-          />
-        </div>
+        {/* macOS 原生三色控制按钮 */}
+        {(window.clipai?.platform === 'darwin' || (!window.clipai?.platform && typeof navigator !== 'undefined' && !navigator.userAgent?.includes('Windows'))) ? (
+          <div style={{ position: 'absolute', left: 14, display: 'flex', gap: 7, WebkitAppRegion: 'no-drag' }}>
+            <div
+              onClick={handleClose}
+              style={{ width: 12, height: 12, borderRadius: '50%', backgroundColor: '#ff5f56', cursor: 'pointer', border: '1px solid rgba(0,0,0,0.2)' }}
+              title={t('imageViewer.closeWindowTip')}
+            />
+            <div
+              onClick={() => {
+                if (window.clipai?.minimizeImageViewer) {
+                  window.clipai.minimizeImageViewer()
+                } else {
+                  window.clipai?.minimizeWindow?.()
+                }
+              }}
+              style={{ width: 12, height: 12, borderRadius: '50%', backgroundColor: '#ffbd2e', cursor: 'pointer', border: '1px solid rgba(0,0,0,0.2)' }}
+              title={t('imageViewer.minimizeTip')}
+            />
+          </div>
+        ) : (
+          /* Windows 原生右侧控制按钮 */
+          <div style={{ position: 'absolute', right: 8, display: 'flex', alignItems: 'center', WebkitAppRegion: 'no-drag' }}>
+            <button
+              type="button"
+              className="win-title-btn"
+              onClick={() => {
+                if (window.clipai?.minimizeImageViewer) {
+                  window.clipai.minimizeImageViewer()
+                } else {
+                  window.clipai?.minimizeWindow?.()
+                }
+              }}
+              title={t('header.minimize') || '最小化'}
+            >
+              —
+            </button>
+            <button
+              type="button"
+              className="win-title-btn win-close-btn"
+              onClick={handleClose}
+              title={`${t('header.close') || '关闭'} (Esc)`}
+            >
+              ✕
+            </button>
+          </div>
+        )}
         <span style={{ fontSize: 12.5, fontWeight: 500, color: 'rgba(255, 255, 255, 0.85)' }}>
           {image ? (image.isScreenshot ? t('imageViewer.screenshotTitle') : t('imageViewer.viewerTitle')) : t('imageViewer.viewerTitle')}
           {naturalSize.width > 0 && ` (${naturalSize.width} × ${naturalSize.height})`}

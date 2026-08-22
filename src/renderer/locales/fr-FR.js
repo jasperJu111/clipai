@@ -496,5 +496,13 @@ export default {
     "statPomodoroCount": "Sessions Pomodoro",
     "statWaterCount": "Rappels d'eau",
     "statMoveCount": "Étirements"
+  },
+  "snipper": {
+      "cancelTip": "Annuler la capture (Esc)",
+      "editAndAnnotate": "✏️ Annoter et modifier",
+      "editAndAnnotateTip": "Annoter et modifier (Ouvrir l'éditeur)",
+      "copy": "✓ Copier",
+      "copyTip": "Terminer et copier (Enter)",
+      "fullscreenTip": "Appuyez sur Espace pour plein écran"
   }
 }

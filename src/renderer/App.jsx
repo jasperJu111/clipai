@@ -349,24 +349,26 @@ export default function App() {
       {/* ── 标题栏 ── */}
       <div className="title-bar" style={{ position: 'relative', zIndex: 1 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          {/* macOS 原生三色红黄绿控制按钮 */}
-          <div className="mac-traffic-lights" style={{ display: 'flex', gap: 7, alignItems: 'center', WebkitAppRegion: 'no-drag' }}>
-            <div
-              className="traffic-dot close-dot"
-              onClick={() => window.clipai?.hideWindow?.()}
-              title={`${t('header.close')} (Esc)`}
-            />
-            <div
-              className="traffic-dot min-dot"
-              onClick={() => window.clipai?.minimizeWindow?.()}
-              title={t('header.minimize')}
-            />
-            <div
-              className="traffic-dot max-dot"
-              onClick={toggleCompact}
-              title={isCompact ? t('header.normalMode') : t('header.compactMode')}
-            />
-          </div>
+          {/* macOS 原生三色红黄绿控制按钮（仅在 macOS 显示） */}
+          {(window.clipai?.platform === 'darwin' || (!window.clipai?.platform && typeof navigator !== 'undefined' && !navigator.userAgent?.includes('Windows'))) && (
+            <div className="mac-traffic-lights" style={{ display: 'flex', gap: 7, alignItems: 'center', WebkitAppRegion: 'no-drag' }}>
+              <div
+                className="traffic-dot close-dot"
+                onClick={() => window.clipai?.hideWindow?.()}
+                title={`${t('header.close')} (Esc)`}
+              />
+              <div
+                className="traffic-dot min-dot"
+                onClick={() => window.clipai?.minimizeWindow?.()}
+                title={t('header.minimize')}
+              />
+              <div
+                className="traffic-dot max-dot"
+                onClick={toggleCompact}
+                title={isCompact ? t('header.normalMode') : t('header.compactMode')}
+              />
+            </div>
+          )}
 
           <div className="title-bar-logo">
             <span style={{ fontSize: '18px' }}>📋</span>
@@ -411,13 +413,45 @@ export default function App() {
           >
             📸
           </button>
-          <button
-            className="title-bar-btn"
-            onClick={toggleCompact}
-            title={isCompact ? t('header.normalMode') : t('header.compactMode')}
-          >
-            {isCompact ? '🗖' : '🗗'}
-          </button>
+
+          {/* macOS 下的紧凑模式切换按钮 */}
+          {(window.clipai?.platform === 'darwin' || (!window.clipai?.platform && typeof navigator !== 'undefined' && !navigator.userAgent?.includes('Windows'))) ? (
+            <button
+              className="title-bar-btn"
+              onClick={toggleCompact}
+              title={isCompact ? t('header.normalMode') : t('header.compactMode')}
+            >
+              {isCompact ? '🗖' : '🗗'}
+            </button>
+          ) : (
+            /* Windows 原生三键 (最小化、紧凑/展开、关闭) */
+            <div className="win-control-group">
+              <button
+                type="button"
+                className="win-title-btn"
+                onClick={() => window.clipai?.minimizeWindow?.()}
+                title={t('header.minimize') || '最小化'}
+              >
+                —
+              </button>
+              <button
+                type="button"
+                className="win-title-btn"
+                onClick={toggleCompact}
+                title={isCompact ? (t('header.normalMode') || '标准模式') : (t('header.compactMode') || '紧凑模式')}
+              >
+                {isCompact ? '🗖' : '🗗'}
+              </button>
+              <button
+                type="button"
+                className="win-title-btn win-close-btn"
+                onClick={() => window.clipai?.hideWindow?.()}
+                title={`${t('header.close') || '关闭'} (Esc)`}
+              >
+                ✕
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -429,7 +463,13 @@ export default function App() {
             <span className="search-icon">🔍</span>
             <input
               className="search-input"
-              placeholder={t('actions.searchPlaceholder')}
+              placeholder={
+                t('actions.searchPlaceholder')
+                  ? ((window.clipai?.platform === 'darwin' || (!window.clipai?.platform && typeof navigator !== 'undefined' && !navigator.userAgent?.includes('Windows')))
+                      ? t('actions.searchPlaceholder')
+                      : t('actions.searchPlaceholder').replace('⌘F', 'Ctrl+F'))
+                  : '搜索剪贴板历史...'
+              }
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               autoFocus

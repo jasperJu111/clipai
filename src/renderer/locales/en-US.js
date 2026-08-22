@@ -496,5 +496,13 @@ export default {
     "statPomodoroCount": "Focus sessions",
     "statWaterCount": "Water reminders",
     "statMoveCount": "Stretch reminders"
+  },
+  "snipper": {
+      "cancelTip": "Cancel Screenshot (Esc)",
+      "editAndAnnotate": "✏️ Annotate & Edit",
+      "editAndAnnotateTip": "Annotate & Edit (Open Image Editor)",
+      "copy": "✓ Copy",
+      "copyTip": "Finish & Copy (Enter)",
+      "fullscreenTip": "Press Space for Fullscreen"
   }
 }

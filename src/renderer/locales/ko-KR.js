@@ -496,5 +496,13 @@ export default {
     "statPomodoroCount": "집중 세션",
     "statWaterCount": "물 마시기",
     "statMoveCount": "스트레칭"
+  },
+  "snipper": {
+      "cancelTip": "스크린샷 취소 (Esc)",
+      "editAndAnnotate": "✏️ 주석 및 편집",
+      "editAndAnnotateTip": "주석 및 편집 (에디터 열기)",
+      "copy": "✓ 복사",
+      "copyTip": "완료 및 클립보드 복사 (Enter)",
+      "fullscreenTip": "스페이스바로 전체 화면 선택"
   }
 }

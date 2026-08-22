@@ -2282,14 +2282,60 @@ body {
   outline: none;
   cursor: pointer;
   appearance: none;
+  color-scheme: dark;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23ffffff60' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 12px center;
   padding-right: 30px;
 }
 
+.settings-select optgroup {
+  background: #0f172a !important;
+  color: #818cf8 !important;
+  font-weight: 700;
+  font-size: 11.5px;
+  padding: 6px 4px;
+}
+
 .settings-select option {
-  background: #1a1a2e;
+  background: #1e293b !important;
+  color: #f1f5f9 !important;
+  font-weight: 500;
+  padding: 8px 10px;
+}
+
+/* ─── Windows 原生风格窗口控制按钮 (Windows Native Controls) ──── */
+.win-control-group {
+  display: flex;
+  align-items: center;
+  margin-left: 6px;
+  -webkit-app-region: no-drag;
+}
+
+.win-title-btn {
+  width: 32px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.win-title-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+}
+
+.win-title-btn.win-close-btn:hover {
+  background: #e81123 !important;
+  color: #ffffff !important;
 }
 
 /* ─── Buttons ──────────────────────────────────────────────── */

@@ -496,5 +496,13 @@ export default {
     "statPomodoroCount": "專注番茄鐘",
     "statWaterCount": "喝水提醒",
     "statMoveCount": "活動提醒"
+  },
+  "snipper": {
+      "cancelTip": "取消截圖 (Esc)",
+      "editAndAnnotate": "✏️ 標註編輯",
+      "editAndAnnotateTip": "標註與編輯 (進入編輯檢視器)",
+      "copy": "✓ 複製",
+      "copyTip": "完成並直接複製 (Enter)",
+      "fullscreenTip": "按空白鍵全螢幕選取"
   }
 }

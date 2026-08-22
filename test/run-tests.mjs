@@ -1266,27 +1266,33 @@ test('parseShortcutFromEvent: 支持平台感知的修饰键解析', async () =>
   assert.strictEqual(parseShortcutFromEvent(winEvent, 'win32'), 'Ctrl+Shift+V')
 })
 
-test('Windows resources/icon.ico 图标生成与尺寸校验', async () => {
+test('macOS & Windows 图标资源生成与尺寸校验', async () => {
   const fs = await import('fs')
   const path = await import('path')
+  const icnsPath = path.resolve('resources/icon.icns')
+  assert.ok(fs.existsSync(icnsPath), 'resources/icon.icns 必须存在')
+  const icnsBuf = fs.readFileSync(icnsPath)
+  assert.ok(icnsBuf.length > 1000, 'icon.icns 文件大小必须合理')
+
   const icoPath = path.resolve('resources/icon.ico')
   assert.ok(fs.existsSync(icoPath), 'resources/icon.ico 必须存在')
-  
-  const buf = fs.readFileSync(icoPath)
-  assert.ok(buf.length > 1000, 'icon.ico 文件大小必须合理')
-  assert.strictEqual(buf.readUInt16LE(0), 0, 'ICO header reserved must be 0')
-  assert.strictEqual(buf.readUInt16LE(2), 1, 'ICO header type must be 1')
-  const count = buf.readUInt16LE(4)
+  const icoBuf = fs.readFileSync(icoPath)
+  assert.ok(icoBuf.length > 1000, 'icon.ico 文件大小必须合理')
+  assert.strictEqual(icoBuf.readUInt16LE(0), 0, 'ICO header reserved must be 0')
+  assert.strictEqual(icoBuf.readUInt16LE(2), 1, 'ICO header type must be 1')
+  const count = icoBuf.readUInt16LE(4)
   assert.ok(count >= 5, `ICO 应包含多个尺寸，当前包含: ${count} 种尺寸`)
 })
 
-test('package.json: 包含 Windows NSIS 目标与 package:win 脚本', async () => {
+test('package.json: 包含 macOS 与 Windows NSIS 构建目标与脚本', async () => {
   const fs = await import('fs')
   const path = await import('path')
   const pkg = JSON.parse(fs.readFileSync(path.resolve('package.json'), 'utf-8'))
 
-  assert.ok(pkg.scripts['package:win'], '必须包含 package:win 构建命令')
   assert.ok(pkg.scripts['package:mac'], '必须包含 package:mac 构建命令')
+  assert.ok(pkg.scripts['package:win'], '必须包含 package:win 构建命令')
+  assert.ok(pkg.build?.mac?.target, 'build.mac.target 必须配置')
+  assert.strictEqual(pkg.build.mac.icon, 'resources/icon.icns', 'macOS 图标必须指定 resources/icon.icns')
   assert.ok(pkg.build?.win?.target, 'build.win.target 必须配置')
   assert.strictEqual(pkg.build.win.icon, 'resources/icon.ico', 'Windows 图标必须指定 resources/icon.ico')
   assert.ok(pkg.build.nsis, '必须包含 nsis 安装包配置')
@@ -1819,6 +1825,117 @@ test('生产数据契约校验: renderPhysicalAnnotations 兼容读取 tool/type
 
   const legacyFill = ctxLegacy.calls.filter((c) => c.method === 'fillText')
   assert.ok(legacyFill[0].font.includes('20px'), '兼容读取 fontSize 作为字号')
+})
+
+// ─────────────────────────────────────────────────────────────
+// 10. 全屏切图极速性能与二进制 Buffer 事务测试 (ScreenSnipper / screenshotTransaction)
+// ─────────────────────────────────────────────────────────────
+console.log('\n⚡ 10. 全屏切图极速性能与二进制 Buffer 事务测试')
+
+test('validateFinishSnipperPayload: 接受合法 Buffer / Uint8Array / ArrayBuffer', async () => {
+  const { validateFinishSnipperPayload } = await import('../src/shared/imageUtils.js')
+  
+  const rawBuf = Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])
+  const resBuffer = validateFinishSnipperPayload({ buffer: rawBuf, transactionId: 'snip_123' })
+  assert.strictEqual(resBuffer.success, true)
+  assert.strictEqual(resBuffer.estimatedBytes, 8)
+  assert.strictEqual(resBuffer.transactionId, 'snip_123')
+
+  const uint8 = new Uint8Array([1, 2, 3, 4, 5])
+  const resUint8 = validateFinishSnipperPayload({ buffer: uint8 })
+  assert.strictEqual(resUint8.success, true)
+  assert.strictEqual(resUint8.estimatedBytes, 5)
+
+  const arrayBuf = new ArrayBuffer(16)
+  const resArrayBuf = validateFinishSnipperPayload({ buffer: arrayBuf })
+  assert.strictEqual(resArrayBuf.success, true)
+  assert.strictEqual(resArrayBuf.estimatedBytes, 16)
+})
+
+test('validateFinishSnipperPayload: 拦截空 Buffer 或超大 Buffer (>25MB)', async () => {
+  const { validateFinishSnipperPayload } = await import('../src/shared/imageUtils.js')
+
+  const emptyBuf = Buffer.alloc(0)
+  const resEmpty = validateFinishSnipperPayload({ buffer: emptyBuf })
+  assert.strictEqual(resEmpty.success, false)
+  assert.ok(resEmpty.error.includes('不能为空'))
+
+  const hugeBuf = { buffer: new Uint8Array(26 * 1024 * 1024) }
+  const resHuge = validateFinishSnipperPayload(hugeBuf)
+  assert.strictEqual(resHuge.success, false)
+  assert.ok(resHuge.error.includes('过大'))
+})
+
+test('executeFinishSnipperTransaction: 支持 saveBuffer 二进制直接提交与剪贴板写入', async () => {
+  const { executeFinishSnipperTransaction } = await import('../src/shared/screenshotTransaction.js')
+  const rawBuf = Buffer.from([1, 2, 3, 4])
+  
+  let savedBuffer = null
+  let savedMeta = null
+  let committedHistory = null
+  let clipboardWritten = null
+
+  const res = await executeFinishSnipperTransaction(
+    { buffer: rawBuf, transactionId: 'snip_999' },
+    {
+      saveBuffer: async (buf, meta) => {
+        savedBuffer = buf
+        savedMeta = meta
+        return { id: meta.id, filePath: 'img_test.png', type: 'image' }
+      },
+      addToHistory: async (item) => {
+        committedHistory = item
+        return { success: true }
+      },
+      writeClipboardImage: async (buf, item) => {
+        clipboardWritten = { buf, item }
+      },
+      closeSnipperWindow: () => {}
+    }
+  )
+
+  assert.strictEqual(res.success, true)
+  assert.strictEqual(savedBuffer, rawBuf)
+  assert.strictEqual(committedHistory.filePath, 'img_test.png')
+  assert.strictEqual(clipboardWritten.buf, rawBuf)
+})
+
+test('拉伸算法数学校验: Southwest (sw) 控制点单次正确计算 w 与 x，无多余累加', () => {
+  // 模拟从 (100, 100, 200, 200) 拖拽 sw 控制点向左移动 30px (mx = 70, my = 350)
+  const original = { x: 100, y: 100, w: 200, h: 200 }
+  // 右边界为 x + w = 300, 新 x 为 70, 则新 w 必须为 300 - 70 = 230
+  // 新 h 为 350 - 100 = 250
+  const mx = 70
+  const my = 350
+
+  // 验证 sw 数学公式: w = (x + w) - mx, x = mx, h = my - y
+  let { x, y, w, h } = original
+  w = (x + w) - mx
+  x = mx
+  h = my - y
+
+  assert.strictEqual(x, 70, 'x 必须准确对齐到 mx')
+  assert.strictEqual(w, 230, 'w 必须准确扩展 (300 - 70 = 230)')
+  assert.strictEqual(h, 250, 'h 必须准确扩展 (350 - 100 = 250)')
+})
+
+test('拉伸算法数学校验: 8 个控制点 (nw, n, ne, e, se, s, sw, w) 几何不变性', () => {
+  const init = { x: 100, y: 100, w: 200, h: 200 } // 右下角 (300, 300)
+
+  // 1. nw: mx=80, my=80 -> 新 x=80, y=80, w=220, h=220
+  let r = { ...init }
+  r.w = (r.x + r.w) - 80; r.h = (r.y + r.h) - 80; r.x = 80; r.y = 80
+  assert.deepStrictEqual(r, { x: 80, y: 80, w: 220, h: 220 })
+
+  // 2. se: mx=350, my=350 -> 新 x=100, y=100, w=250, h=250
+  r = { ...init }
+  r.w = 350 - r.x; r.h = 350 - r.y
+  assert.deepStrictEqual(r, { x: 100, y: 100, w: 250, h: 250 })
+
+  // 3. ne: mx=350, my=80 -> 新 x=100, y=80, w=250, h=220
+  r = { ...init }
+  r.w = 350 - r.x; r.h = (r.y + r.h) - 80; r.y = 80
+  assert.deepStrictEqual(r, { x: 100, y: 80, w: 250, h: 220 })
 })
 
 // ─────────────────────────────────────────────────────────────

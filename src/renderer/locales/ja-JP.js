@@ -496,5 +496,13 @@ export default {
     "statPomodoroCount": "集中セッション",
     "statWaterCount": "水分補給",
     "statMoveCount": "ストレッチ"
+  },
+  "snipper": {
+      "cancelTip": "スクリーンショットをキャンセル (Esc)",
+      "editAndAnnotate": "✏️ 注釈・編集",
+      "editAndAnnotateTip": "注釈と編集 (エディタを開く)",
+      "copy": "✓ コピー",
+      "copyTip": "クリップボードにコピーして完了 (Enter)",
+      "fullscreenTip": "スペースキーで全画面選択"
   }
 }

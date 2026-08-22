@@ -349,6 +349,7 @@ export default function AIPanel({ settings, selectedItem, prompts, onUpdatePromp
           onUpdate={onUpdatePrompts}
           showToast={showToast}
           t={t}
+          language={settings?.language}
         />
       ) : (
         <>

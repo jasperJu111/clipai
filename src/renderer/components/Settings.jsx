@@ -122,7 +122,7 @@ function ShortcutSelector({ value = '', onChange, presets = [], t = (k) => k }) 
 
       {/* 自由点选修饰键 + 字母键 */}
       <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 5 }}>
-        <span style={{ fontSize: 11, color: 'var(--text-muted)', marginRight: 2 }}>{t('settings.shortcutLabel')}:</span>
+        <span style={{ fontSize: 11, color: 'var(--text-muted)', marginRight: 2 }}>{t('settings.shortcutCombo') || '组合键'}:</span>
         
         {/* 修饰键按钮 */}
         <button

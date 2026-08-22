@@ -71,12 +71,38 @@ export function validateFinishSnipperPayload(payload) {
     Array.isArray(payload) ||
     Object.prototype.toString.call(payload) !== '[object Object]'
   ) {
-    return { success: false, error: '无效截图数据: 参数必须为普通对象 { dataUrl }' }
+    return { success: false, error: '无效截图数据: 参数必须为普通对象 { dataUrl } 或 { buffer }' }
+  }
+
+  // 1. 优先支持高性能二进制 Buffer / Uint8Array / ArrayBuffer (零 Base64 开销)
+  if (payload.buffer) {
+    const isBuffer = typeof Buffer !== 'undefined' && Buffer.isBuffer(payload.buffer)
+    const isUint8 = payload.buffer instanceof Uint8Array
+    const isArrayBuffer = payload.buffer instanceof ArrayBuffer
+    if (!isBuffer && !isUint8 && !isArrayBuffer) {
+      return { success: false, error: '无效截图数据: buffer 必须为 Buffer、Uint8Array 或 ArrayBuffer' }
+    }
+    const byteLength = payload.buffer.byteLength || payload.buffer.length || 0
+    if (byteLength === 0) {
+      return { success: false, error: '无效截图数据: buffer 不能为空' }
+    }
+    if (byteLength > MAX_IMAGE_FILE_SIZE) {
+      return { success: false, error: `截图数据过大 (${Math.round(byteLength / 1024 / 1024)}MB > 25MB)` }
+    }
+    return {
+      success: true,
+      buffer: payload.buffer,
+      dataUrl: null,
+      estimatedBytes: byteLength,
+      openEditor: Boolean(payload.openEditor),
+      showMain: Boolean(payload.showMain),
+      transactionId: payload.transactionId
+    }
   }
 
   const { dataUrl } = payload
   if (typeof dataUrl !== 'string' || !dataUrl.trim()) {
-    return { success: false, error: '无效截图数据: dataUrl 必须为非空字符串' }
+    return { success: false, error: '无效截图数据: dataUrl 或 buffer 必须提供其一' }
   }
 
   const parsed = parseDataUrl(dataUrl)
@@ -98,9 +124,12 @@ export function validateFinishSnipperPayload(payload) {
   return {
     success: true,
     dataUrl,
+    buffer: null,
     parsed,
     estimatedBytes,
-    openEditor: Boolean(payload.openEditor)
+    openEditor: Boolean(payload.openEditor),
+    showMain: Boolean(payload.showMain),
+    transactionId: payload.transactionId
   }
 }
 

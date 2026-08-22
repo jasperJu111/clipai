@@ -1,20 +1,26 @@
-import { contextBridge, ipcRenderer } from 'electron'
+const { contextBridge, ipcRenderer } = require('electron')
 
-// 📸 全屏截图交互窗口最小权限 Preload 脚本
 contextBridge.exposeInMainWorld('clipai', {
-  // 运行平台标识 ('darwin' | 'win32' | 'linux')
-  platform: process.platform,
-
   getSnipperData: () => ipcRenderer.invoke('get-snipper-data'),
-  finishSnipper: (data) => ipcRenderer.invoke('finish-snipper', data),
-  closeSnipper: () => ipcRenderer.invoke('close-snipper'),
-  saveSnipperImage: (dataUrl) => ipcRenderer.invoke('save-snipper-image', dataUrl),
-  openImageViewer: (imageData) => ipcRenderer.invoke('open-image-viewer', imageData),
-
-  // 防御性空实现（防子组件意外调用）
-  getHistory: async () => [],
-  getSettings: async () => ({}),
-  getPrompts: async () => [],
-  onHistoryUpdated: () => () => {},
-  onScreenshotSuccess: () => () => {}
+  onSnipperRefresh: (callback) => {
+    const handler = (_, data) => callback(data)
+    ipcRenderer.on('snipper-refresh', handler)
+    return () => ipcRenderer.removeListener('snipper-refresh', handler)
+  },
+  onSnipperRefreshBuffer: (callback) => {
+    const handler = (_, data) => callback(data)
+    ipcRenderer.on('snipper-refresh-buffer', handler)
+    return () => ipcRenderer.removeListener('snipper-refresh-buffer', handler)
+  },
+  sendSnipperReady: (data) => {
+    ipcRenderer.send('snipper-ready', data)
+  },
+  finishSnipper: (payload) => ipcRenderer.invoke('finish-snipper', payload),
+  closeSnipper: () => ipcRenderer.invoke('close-snipper', {}),
+  getSettings: () => ipcRenderer.invoke('get-settings'),
+  onSettingsChanged: (callback) => {
+    const handler = (_, settings) => callback(settings)
+    ipcRenderer.on('settings-changed', handler)
+    return () => ipcRenderer.removeListener('settings-changed', handler)
+  }
 })

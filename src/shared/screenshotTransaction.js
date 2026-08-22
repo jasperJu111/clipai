@@ -32,21 +32,35 @@ export async function executeFinishSnipperTransaction(payload, deps = {}) {
     return { success: false, error: validation?.error || '无效截图数据' }
   }
 
-  const { dataUrl } = validation
+  const { dataUrl, buffer } = validation
   let createdItem = null
   let historyCommitted = false
 
   try {
     // 阶段 B: 创建图片文件
-    if (typeof saveDataUrl !== 'function') {
-      throw new Error('缺少 saveDataUrl 实现')
-    }
-    createdItem = await saveDataUrl(dataUrl, {
+    const metadata = {
       id: Date.now(),
       label: '截图',
       isScreenshot: true,
       favorite: false
-    })
+    }
+
+    if (buffer) {
+      if (typeof deps.saveBuffer === 'function') {
+        createdItem = await deps.saveBuffer(buffer, metadata)
+      } else if (typeof saveDataUrl === 'function') {
+        // 后备：若未提供 saveBuffer，转为 Data URL 兼容写入
+        const b64 = Buffer.from(buffer).toString('base64')
+        createdItem = await saveDataUrl(`data:image/png;base64,${b64}`, metadata)
+      } else {
+        throw new Error('缺少 saveBuffer 或 saveDataUrl 实现')
+      }
+    } else {
+      if (typeof saveDataUrl !== 'function') {
+        throw new Error('缺少 saveDataUrl 实现')
+      }
+      createdItem = await saveDataUrl(dataUrl, metadata)
+    }
 
     if (!createdItem || !createdItem.id) {
       throw new Error('创建图片文件未返回有效记录')
@@ -84,7 +98,7 @@ export async function executeFinishSnipperTransaction(payload, deps = {}) {
 
   if (typeof writeClipboardImage === 'function') {
     try {
-      await writeClipboardImage(dataUrl, createdItem)
+      await writeClipboardImage(buffer || dataUrl, createdItem)
     } catch (clipErr) {
       logWarning(`写入剪贴板失败 (非致命): ${clipErr.message}`)
     }
@@ -98,7 +112,7 @@ export async function executeFinishSnipperTransaction(payload, deps = {}) {
     }
   }
 
-  if (typeof showMainWindow === 'function') {
+  if (payload?.showMain && typeof showMainWindow === 'function') {
     try {
       showMainWindow()
     } catch (mainWinErr) {
@@ -106,7 +120,7 @@ export async function executeFinishSnipperTransaction(payload, deps = {}) {
     }
   }
 
-  if (typeof openImageViewer === 'function') {
+  if (payload?.openEditor && typeof openImageViewer === 'function') {
     try {
       openImageViewer(createdItem)
     } catch (viewErr) {

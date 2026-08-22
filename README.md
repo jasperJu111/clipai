@@ -4,11 +4,12 @@
 
 <img src="resources/icon.png" width="128" height="128" alt="ClipAI Icon" style="border-radius: 28px; box-shadow: 0 12px 36px rgba(0,0,0,0.3);" />
 
-<h3>✨ 极速剪贴 · 多模态 AI · 12 套灵动主题 · 提示词中心 · 专业截图画板 · 健康番茄钟</h3>
+<h3>✨ 智能剪贴 · 多模态 AI · 极速截图标注 · 100+ 提示词 · 12 套灵动主题 · 健康番茄钟</h3>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Platform-macOS%20%7C%20Windows-blue?style=flat-square" alt="Platform" />
-  <img src="https://img.shields.io/badge/Electron-30.0-47848F?style=flat-square&logo=electron" alt="Electron" />
+  <img src="https://img.shields.io/badge/Platform-macOS%20%7C%20Windows%2010%2F11-blue?style=flat-square&logo=apple" alt="Platform" />
+  <img src="https://img.shields.io/badge/Version-v0.1.3-orange?style=flat-square" alt="Version" />
+  <img src="https://img.shields.io/badge/Electron-29.4-47848F?style=flat-square&logo=electron" alt="Electron" />
   <img src="https://img.shields.io/badge/React-18.3-61DAFB?style=flat-square&logo=react" alt="React" />
   <img src="https://img.shields.io/badge/Vite-5.4-646CFF?style=flat-square&logo=vite" alt="Vite" />
   <img src="https://img.shields.io/badge/Languages-8%20Languages-success?style=flat-square" alt="Languages" />
@@ -23,169 +24,141 @@
 
 ## 🌟 项目简介 (About ClipAI)
 
-**ClipAI** 是一款专为开发者、创作者、学者与职场精英打造的**高颜值、全能型开源智能剪贴板工具**。
+**ClipAI** 是一款专为开发者、创作者、学者与职场精英打造的**高颜值、全能型开源智能剪贴板与生产力工作台**。
 
-它不仅拥有媲美原生系统的 60 帧流畅亚克力毛玻璃视觉质感，更深度融合了**本地/云端多模态大语言模型（DeepSeek、OpenAI、Claude、Gemini、Ollama 等）**，让你的每一次复制、截图、问答与写作都事半功倍。
+它深度融合了 **macOS 与 Windows 10/11** 原生设计语言，提供 60 帧流畅亚克力毛玻璃视觉质感，更无缝集成了 **本地与云端多模态大语言模型（DeepSeek、OpenAI、Claude、Gemini、Ollama 等）**，让每一次复制、截图、标注、问答与写作都极速高效。
 
 ---
 
 ## ✨ 核心功能矩阵 (Feature Highlights)
 
-### 1. 📋 极速智能剪贴板管理
-* **全格式智能捕获**：文本、代码高亮、高清图片、网页链接、屏幕截图自动分类归档。
-* **快捷检索与持久化**：支持 `⌘F` 实时模糊搜索，本地安全持久化，历史容量可自定（50 ~ 1000 条）。
-* **置顶收藏与快捷操作**：支持对常用代码片段、文本模板一键 ⭐ 收藏与 📌 置顶，支持一键清空未收藏条目。
+### 1. 📋 极速智能剪贴板管理 (Smart Clipboard)
+* **全格式智能捕获**：实时监控文本、代码语法高亮、高清图片、富文本及链接，智能哈希去重。
+* **毫秒级模糊检索**：支持全局快速唤醒与 `⌘F` / `Ctrl+F` 实时模糊搜索，支持按「全部 / 文本 / 图片 / 收藏」多维筛选。
+* **置顶收藏与历史管理**：支持一键 ⭐ 收藏与 📌 置顶常用片段，历史容量可自定（50 ~ 1000 条），支持一键清空非收藏条目。
+* **磁盘持久化与配额保护**：图片采用磁盘结构化持久化存储与缩略图缓存，内置智能 LRU 自动清理，杜绝内存膨胀。
 
-### 2. 🤖 多模型 AI 智能工作台
-* **多服务商即开即用**：原生支持 **DeepSeek**、**OpenAI (GPT-4o)**、**Anthropic (Claude 3.5)**、**Google (Gemini 1.5 Pro)**、**Ollama (本地离线私有模型)** 及任何 OpenAI 兼容的第三方代理。
+### 2. 📸 极速十字准星截图与专业画板标注 (Screen Capture & Annotation)
+* **跨平台原生级截图体验**：
+  * **macOS & Windows 深度适配**：零外部依赖，毫秒级响应。
+  * **全局快捷键一键呼出**：macOS 默认 `⌘⌥A`，Windows 默认 `Alt+A` / `Ctrl+Shift+A`（支持自由自定义或禁用）。
+  * **流畅交互**：十字准星精准定格，支持 8 锚点自由缩放、动态像素尺寸徽标，按 `Space`（空格键）一键选取全屏。
+  * **极速完成/取消**：双击选区或按 `Enter` 快速复制并保存；按 `Esc` 或鼠标右键瞬时退出。
+* **高清截图查看与标注画板 (ImageViewer)**：
+  * 截图后点击 **`✏️ 标注编辑`** 直通专业图片标注工具箱。
+  * **完整标注工具**：矩形框选、圆形、方向箭头、画笔自由涂鸦、文字排版（支持字号与色彩定制）、智能马赛克打码、撤销上一步、一键清屏。
+  * **图像控制与输出**：支持无级缩放、90° 旋转、适应窗口、一键复制到剪贴板与保存至本地。
+  * **AI 视觉多模态分析**：在标注窗口内直接点击 **`✨ 问 AI`** 进行 **OCR 文字提取**、**多语翻译**、**图表解析** 与 **代码答疑**。
+
+### 3. 🤖 多模型 AI 智能助手 (Multimodal AI Assistant)
+* **多服务商聚合支持**：原生支持 **DeepSeek**、**OpenAI (GPT-4o)**、**Anthropic (Claude 3.5 Sonnet)**、**Google (Gemini 1.5 Pro / Flash)**、**Ollama (本地离线私有模型)** 及任何 OpenAI 兼容代理。
 * **一键模型探针**：点击自动扫描并列出当前 API 账户下所有可用的模型列表，免去手动配置繁琐参数。
 * **高频场景快捷指令**：
   * ✨ **文章润色**：深度重构文本，提升专业度与表达力。
   * 📝 **智能摘要**：快速提取长文核心要点（Bullet Points）。
   * 🔍 **语法校对**：精准修正错别字、标点与语病。
-  * 💡 **代码解析**：通俗深度拆解代码逻辑与实现原理。
-  * 🐞 **查找修复 Bug**：一键排查潜在漏洞与边界条件并提供优化方案。
+  * 💡 **代码解析**：深度拆解代码逻辑与算法实现。
+  * 🐞 **查找修复 Bug**：一键排查代码潜在漏洞与边界条件。
   * 📊 **整理表格**：杂乱文本/JSON 快速转换为标准 Markdown 表格。
-  * 🌐 **多语互译**：支持中、英、日、韩、西、德、法一键地道互译。
-
-### 3. 🐱 智造喵 (AimakeX) 深度生态互通
-* 深度内嵌智造喵专属智能体工作台，支持从剪贴板一键将富文本或图片直传至智造喵对话流，实现多 Agent 协同办公。
+  * 🌐 **多语互译**：支持 8 种语言地道精准互译。
 
 ### 4. 🌟 100+ 提示词中心 (Prompts Center)
 * **4 合 1 提示词库**：**精选库 (100+)**、**私有自建库**、**我的收藏**、**最近使用**。
 * **全分类覆盖**：编程开发、文案写作、职场效率、学术科研、创意设计、生活娱乐等。
-* **克隆与魔改**：遇到优秀的官方角色，支持一键克隆到私有库进行自由定制修改。
-* **导入导出与云端同步**：支持 JSON 格式备份与跨设备迁移。
+* **一键克隆与自由魔改**：遇到优秀的角色设定，支持一键克隆到私有库进行自由定制。
+* **导入导出备份**：支持标准 JSON 格式备份与跨设备轻松迁移。
 
-### 5. 📸 区域截图与专业图像标注画板 (ScreenSnipper)
-* **全局唤醒截图**：按快捷键 `Alt+S`（或点击顶栏 📸 图标）即可冻结全屏、精确截取任意区域。
-* **专业级画板标注**：矩形框、圆形、方向箭头、自由画笔涂鸦、文字排版、局部马赛克打码。
-* **AI 视觉多模态分析**：直接在截图上调用大模型进行 **OCR 文字提取**、**画面总结**、**多语翻译** 与 **解题答疑**。
-
-### 6. ⏱️ 健康作息与专注番茄钟 (Health & Focus Timer)
-* **顶栏灵动胶囊倒计时**：呼吸动画实时显示剩余时间，不占用工作空间。
-* **科学健康作息预设**：
+### 5. ⏱️ 科学健康作息与番茄钟专注系统 (Wellness & Focus Timer)
+* **灵动胶囊倒计时**：顶栏呼吸胶囊实时显示剩余时间，不干扰正常工作。
+* **科学健康预设**：
   * 💧 **规律喝水**（推荐 45 分钟）
   * 🚶 **久坐活动**（推荐 50 分钟）
   * 🍱 **按时就餐**（午餐/晚餐提醒）
-  * 🍅 **标准番茄工作法**（25 分钟深度专注 + 5 分钟小休）
-  * 👀 **20-20-20 护眼法则**（缓解视疲劳）
-* **强提醒与和弦音效**：Web Audio 合成优雅和弦提示音 + macOS/Windows 操作系统原生通知中心强提醒（应用隐藏在后台依然准时送达）。
+  * 🍅 **标准番茄工作法**（25 分钟深度沉浸 + 5 分钟小休）
+  * 👀 **20-20-20 护眼法则**（每 20 分钟远眺 20 英尺外放松 20 秒）
+* **强提醒与和弦音效**：Web Audio 优雅和弦提示音 + macOS/Windows 原生通知中心强提醒（应用隐藏在后台依然准时送达，支持「稍后 5 分钟」再提醒）。
+* **今日健康数据看板**：实时统计今日番茄钟专注次数与健康达标概览。
 
-### 7. 🎨 12 套顶级主题与个性化定制
+### 6. 🎨 12 套顶级主题与个性化定制 (Aesthetics & Personalization)
 * **12 款精雕细琢的主题配色**：
-  * 📱 **iOS 灵动液态**（Dynamic Island 亚克力通透悬浮）
-  * 💎 **Linear 黑曜星空**（极光靛青 · 黑曜石深邃暗夜）
-  * ⚡ **Raycast 赤红之夜**（深渊午夜 · 绯红能量）
-  * 🌈 **Arc 弥生霓虹**（流体渐变 · 极光霓虹网格）
-  * 🧊 **Sequoia 冰川晶透**（macOS 冰川蓝 · 晶莹剔透玻璃）
+  * 📱 **iOS 灵动液态** (Dynamic Island 液态玻璃)
+  * 💎 **Linear 黑曜星空** (极光靛青 · 黑曜石深邃暗夜)
+  * ⚡ **Raycast 赤红之夜** (深渊午夜 · 绯红能量)
+  * 🌈 **Arc 弥生霓虹** (流体渐变 · 极光霓虹网格)
+  * 🧊 **Sequoia 冰川晶透** (macOS 冰川蓝 · 晶莹剔透玻璃)
   * 🌲 **翡翠极光**、🌅 **落日余晖**、👾 **黑客矩阵**、🏙️ **Apple 陶瓷白**、☕ **暖阳丝绒白**、🌫️ **冷杉薄雾蓝** 等。
-* **自定义背景壁纸**：支持任意本地图片上传，支持**毛玻璃虚化模糊 (Blur)** 与 **暗度遮光遮罩 (Dim Overlay)** 无级滑动微调。
-* **窗口背景不透明度 (Opacity)**：65% ~ 100% 自由可调，边查代码/网页边使用剪贴板。
+* **自定义壁纸与背景微调**：支持上传本地图片壁纸，支持**毛玻璃虚化度 (Blur)** 与 **暗度遮光 (Dim Overlay)** 无级调节。
+* **窗口背景不透明度 (Opacity)**：65% ~ 100% 自由可调，边看背景代码/文档边使用剪贴板。
 * **排版布局密度**：极客紧凑、标准黄金、宽松舒展三档自由切换。
 
-### 8. 🌐 8 国全球母语深度本地化
-* 原生支持 **简体中文 (zh-CN)**、**繁體中文 (zh-TW)**、**English (en-US)**、**日本語 (ja-JP)**、**한국어 (ko-KR)**、**Español (es-ES)**、**Deutsch (de-DE)**、**Français (fr-FR)**。
-* 222+ 个词条全方位深度覆盖，包含提示词库多语言智能映射。
+### 7. 🌐 8 国全球语言深度本地化 (i18n)
+全界面（主面板、设置、截图工具栏、标注查看器）完整原生支持 8 种语言，实时无缝热切换：
+- 🇨🇳 简体中文 (zh-CN)
+- 🇭🇰 繁體中文 (zh-TW)
+- 🇺🇸 English (en-US)
+- 🇯🇵 日本語 (ja-JP)
+- 🇰🇷 한국어 (ko-KR)
+- 🇪🇸 Español (es-ES)
+- 🇩🇪 Deutsch (de-DE)
+- 🇫🇷 Français (fr-FR)
+
+### 8. 🔒 极致隐私与安全加固 (Security & Privacy First)
+* **100% 本地优先**：历史数据与图片全本地存储，零云端上传，无隐私泄露风险。
+* **硬件级密态加密**：API Key 采用系统硬件安全层（Electron `safeStorage` / Keychain / DPAPI）密态加密。
+* **日志与界面全流程脱敏**：敏感 API Key 自动掩码，防止截屏或日志外泄。
+* **配置自动备份容灾**：启动时自动执行脱敏配置备份，保障数据万无一失。
 
 ---
 
-## 🚀 快捷键指南 (Shortcuts)
+## ⌨️ 快捷键指南 (Shortcuts)
 
-| 快捷键 | 作用说明 |
-| :--- | :--- |
-| <kbd>Alt + Space</kbd> (Mac) / <kbd>Ctrl + Shift + Space</kbd> (Win) | **全局快速唤醒 / 隐藏 ClipAI 窗口** |
-| <kbd>Alt + A</kbd> (或 <kbd>⌥ + A</kbd>) | **全局截图与大图编辑画板（自动直达编辑器）** |
-| <kbd>⌘ + F</kbd> / <kbd>Ctrl + F</kbd> | 快速聚焦搜索框 |
-| <kbd>⌘ + Enter</kbd> / <kbd>Ctrl + Enter</kbd> | 在 AI 对话或提示词中快速发送生成 |
-| <kbd>⌘ + Q</kbd> / <kbd>Alt + F4</kbd> | 彻底退出应用并关闭后台托盘进程 |
-
----
-
-## 📖 详细使用教程 (Usage Guide)
-
-### 1. 剪贴板使用
-* 日常复制任何文本、链接、代码或截图，ClipAI 将在后台自动静默捕获。
-* 在剪贴板列表中：
-  * 单击卡片右侧的 📋 图标即可快速重新复制；
-  * 点击 ✨ **AI 解析** 可直接带入 AI 对话流；
-  * 点击 ⭐ 收藏可永久防止被清空。
-
-### 2. AI 助手配置与使用
-1. 点击顶部导航栏的 **「设置」** ➔ **「AI 服务商设置」**；
-2. 选择你的供应商（如 `DeepSeek`、`OpenAI`、`Ollama` 等）；
-3. 填入你的 `API Key`（本地 Ollama 可直接连接无需 Key）；
-4. 点击 **「🔍 检测可用模型」** 选择心仪的模型（如 `deepseek-chat` 或 `gpt-4o`）；
-5. 点击 **「⚡ 测试连接」** 确认延时正常即可开始畅享极速 AI 问答！
-
-### 3. 提示词库使用与魔改
-1. 进入顶部 **「AI 助手」** ➔ 子标签切换至 **「💡 提示词库」**；
-2. 浏览精选的 100+ 角色（如 Linux 终端、前端架构师、周报大师等）；
-3. 点击卡片底部的 **`⚡ 极速使用`** 立即载入对话；
-4. 点击 **`⎘ 克隆魔改`** 可将该人设复制到自己的私有库进行定制保存。
-
-### 4. 专注与健康定时器
-1. 点击顶部标题栏右侧的 ⏱️ 计时器图标打开面板；
-2. 选择「规律喝水」、「久坐活动」或「番茄专注」，点击 **「开始计时」**；
-3. 窗口顶栏会显示动态倒计时胶囊，倒计时结束后将自动播放和弦铃声并弹出系统通知。
+| 功能说明 | macOS 快捷键 | Windows 快捷键 |
+| :--- | :--- | :--- |
+| **唤醒 / 隐藏 ClipAI 主窗口** | <kbd>⌥ + Space</kbd> (或 <kbd>⌘ + ⇧ + V</kbd>) | <kbd>Ctrl + Shift + V</kbd> (或 <kbd>Alt + V</kbd>) |
+| **极速全屏交互截图** | <kbd>⌥ + A</kbd> (或 <kbd>⌘ + ⌥ + A</kbd>) | <kbd>Alt + A</kbd> (或 <kbd>Ctrl + Shift + A</kbd>) |
+| **快速聚焦搜索框** | <kbd>⌘ + F</kbd> | <kbd>Ctrl + F</kbd> |
+| **AI 对话 / 提示词发送** | <kbd>⌘ + Enter</kbd> | <kbd>Ctrl + Enter</kbd> |
+| **截图全屏选区** | <kbd>Space</kbd> (空格键) | <kbd>Space</kbd> (空格键) |
+| **截图完成并复制** | <kbd>Enter</kbd> (或双击选区) | <kbd>Enter</kbd> (或双击选区) |
+| **取消截图 / 关闭弹窗** | <kbd>Esc</kbd> (或鼠标右键) | <kbd>Esc</kbd> (或鼠标右键) |
 
 ---
 
-## 💻 开发者指南与本地构建 (Development & Build)
+## 📦 下载与安装 (Downloads)
 
-### 1. 环境准备
-* [Node.js](https://nodejs.org/) (建议 `v18.0.0` 或更高版本)
-* `npm` 或 `pnpm` / `yarn`
+前往 [GitHub Releases](https://github.com/jasperJu111/clipai/releases) 下载最新 **v0.1.3** 安装包：
 
-### 2. 克隆与安装依赖
+| 平台 | 架构 | 安装包类型 | 下载文件名 |
+| :--- | :--- | :--- | :--- |
+| **Windows** | x64 (64-bit) | NSIS 一键安装包 | `ClipAI-0.1.3-windows-x64-setup.exe` |
+| **macOS** | Universal (Apple Silicon M系列 & Intel) | DMG 镜像 | `ClipAI-0.1.3-universal.dmg` |
+| **macOS** | Universal | 绿色免安装 ZIP | `ClipAI-0.1.3-universal-mac.zip` |
+
+---
+
+## 🛠️ 本地开发与构建 (Development)
+
 ```bash
-# 克隆本仓库
+# 1. 克隆代码仓库
 git clone https://github.com/jasperJu111/clipai.git
-
-# 进入项目目录
 cd clipai
 
-# 安装项目依赖
+# 2. 安装依赖
 npm install
-```
 
-### 3. 启动本地开发调试
-```bash
+# 3. 启动开发模式
 npm run dev
+
+# 4. 执行自动化测试 (81项单元与集成测试)
+npm test
+
+# 5. 打包构建
+npm run package:mac   # 构建 macOS Universal DMG
+npm run package:win   # 构建 Windows x64 安装包
 ```
-
-### 4. 打包分发构建
-```bash
-# 构建 macOS 安装包 (.dmg / .zip)
-npm run build:mac
-
-# 构建 Windows 安装包 (.exe / portable)
-npm run build:win
-
-# 构建全平台安装包
-npm run build
-```
-打包生成的可执行文件将位于 `dist/` 目录下。
-
----
-
-## 🛠️ 技术栈 (Tech Stack)
-
-* **应用底座**：[Electron 30](https://www.electronjs.org/) + [electron-vite](https://evite.netlify.app/)
-* **前端框架**：[React 18](https://react.dev/) + Hooks
-* **样式架构**：Vanilla CSS 3（深度毛玻璃滤镜、CSS 变量色彩引擎、GPU 硬件加速渲染）
-* **AI 通信**：Fetch SSE 流式传输 (Server-Sent Events) + Web Worker 异步任务
-* **音频合成**：HTML5 Web Audio API（原生和弦合成，无需外挂庞大音频资源文件）
-* **本地存储**：Electron Store + LocalStorage 本地加密持久化
 
 ---
 
 ## 📄 开源协议 (License)
 
-本项目基于 [MIT License](LICENSE) 开源协议，欢迎自由使用、学习与商业衍生开发。
-
----
-
-<div align="center">
-  <sub>Made with ❤️ by ClipAI Community. 如果觉得好用，请为本项目点一个 ⭐ Star 鼓励一下吧！</sub>
-</div>
+本项目基于 [MIT License](LICENSE) 协议开源。
