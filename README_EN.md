@@ -50,9 +50,10 @@ Engineered with 60fps frosted acrylic aesthetics tailored for **macOS and Window
   * **Image Canvas Controls**: Seamless zoom, 90° rotation, fit-to-window, copy to clipboard, and save to disk.
   * **AI Vision & Multimodal OCR**: Click **`✨ Ask AI`** directly in the editor for instant **OCR text extraction**, **translation**, **chart analysis**, and **code solving**.
 
-### 3. 🤖 Multimodal AI Assistant
-* **Aggregated Multi-Provider Support**: Out-of-the-box support for **DeepSeek**, **OpenAI (GPT-4o)**, **Anthropic (Claude 3.5 Sonnet)**, **Google (Gemini 1.5 Pro / Flash)**, **Ollama (local offline models)**, and any OpenAI-compatible API.
-* **One-Click Model Discovery**: Automatically queries and populates available models from your API account without manual configurations.
+### 3. 🤖 Multimodal AI Assistant & AimakeX
+* **Latest-Model Connectivity**: Supports the latest models made available to the current API account by **OpenAI**, **Anthropic Claude**, **Google Gemini**, **DeepSeek**, and **Ollama**, plus OpenAI-compatible endpoints—without hard-coding model version names.
+* **Automatic Discovery & Manual Setup**: Automatically discovers models available to the current API account and also supports manually entered model names for quick access to newly released models.
+* **🐱 AimakeX Workspace**: Open AimakeX directly inside ClipAI and quickly insert clipboard content into its workspace. Related project: [**@PlexPt/awesome-chatgpt-prompts-zh**](https://github.com/PlexPt/awesome-chatgpt-prompts-zh).
 * **High-Frequency AI Actions**:
   * ✨ **Polish Article**: Enhance clarity, tone, and professional expressiveness.
   * 📝 **Smart Summary**: Distill long articles into bullet-point takeaways.
@@ -63,9 +64,11 @@ Engineered with 60fps frosted acrylic aesthetics tailored for **macOS and Window
   * 🌐 **Multilingual Translation**: Accurate and nuanced translation across 8 languages.
 
 ### 4. 🌟 100+ Prompt Center
+* **Open-Source Prompt Resources**: Curated content references the [**@f/prompts.chat**](https://github.com/f/prompts.chat) open-source prompt library, with convenient search and execution inside ClipAI.
 * **4-in-1 Prompt Vault**: **Curated (100+)**, **Custom User Library**, **Favorites**, and **Recent**.
 * **Comprehensive Categories**: Software Development, Copywriting, Productivity, Academia & Research, Creative Design, Daily Life, etc.
-* **Clone & Customize**: Clone any curated prompt to your private library with one click for custom adjustments.
+* **Create & Manage Custom Prompts**: Freely create, edit, categorize, favorite, and delete personal prompts.
+* **Clone & Customize**: Clone any curated prompt to your private library with one click and customize it freely.
 * **Import & Export**: Standard JSON backup and cross-device synchronization.
 
 ### 5. ⏱️ Wellness & Pomodoro Focus Timer
@@ -107,6 +110,17 @@ All interfaces (Main Dashboard, Settings, Snipping Bar, Annotation Studio) featu
 * **Hardware-Level Encryption**: API keys stored with system hardware protection (Electron `safeStorage` / OS Keychain / DPAPI).
 * **Full-Stack Masking**: Sensitive keys masked in UI and sanitize logs to prevent accidental screen/log leakage.
 * **Automatic Disaster-Recovery Backups**: Redacted configuration backups created at launch.
+
+---
+
+## 🙏 Open-Source Credits
+
+ClipAI's AimakeX integration and prompt features reference or integrate the following projects:
+
+* 🐱 **AimakeX-related project**: [**@PlexPt/awesome-chatgpt-prompts-zh**](https://github.com/PlexPt/awesome-chatgpt-prompts-zh)
+* 💡 **prompts.chat open-source prompt library**: [**@f/prompts.chat**](https://github.com/f/prompts.chat)
+
+Thanks to their maintainers and open-source communities. Please follow the corresponding upstream licenses when using related content.
 
 ---
 
